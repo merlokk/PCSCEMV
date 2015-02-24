@@ -6,12 +6,12 @@ uses
 
 
 function Hex2Bin(input: string): AnsiString;
-function Bin2HexExt(const input:string; const spaces, upcase: boolean): string;
+function Bin2HexExt(const input:AnsiString; const spaces, upcase: boolean): string;
 
 function StrSafeInc(s: AnsiString; var indx: integer; incval: integer = 1): boolean;
 
 const
-  HexChars    = '0123456789abcdefABCDEF';
+  HexChars: String = '0123456789abcdefABCDEF';
 
 implementation
 
@@ -23,18 +23,18 @@ var
   loop: integer;
 begin
   for loop := 1 to Length(input) do
-    if Pos(input[loop], hexchars) > 0 then hex := hex + AnsiUpperCase(input[loop]);
+    if Pos(input[loop], hexchars) > 0 then hex := hex + AnsiUpperCase(AnsiChar(input[loop]));
 
   loop := 1;
   if Length(hex) > 0 then
     repeat
-      output := output + AnsiChar(StrToInt('$'+Copy(hex, loop, 2)));
+      output := output + AnsiChar(StrToInt('$' + String(Copy(hex, loop, 2))));
       loop := loop + 2;
     until loop > Length(hex);
   Result := output;
 end;
 
-function Bin2HexExt(const input:string; const spaces, upcase: boolean): string;
+function Bin2HexExt(const input:AnsiString; const spaces, upcase: boolean): string;
 var
    loop      : integer;
    hexresult : string;
