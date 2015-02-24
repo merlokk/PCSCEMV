@@ -155,6 +155,7 @@ type
     function    GetResponseFromCard(const command: AnsiString; var data: AnsiString; var sw: word): boolean; overload;
 
     function    CardSelect(const aid: AnsiString; var sw: Word): AnsiString;
+    function    ReadSFIRecord(sfi, rnum: byte; var sw: Word): AnsiString;
 
   published
     property UseReaderNum: integer    read FUseReaderNum    write SetReaderNum  default -1;
@@ -466,6 +467,26 @@ if ReaderEmNew     and
                         end;
 
 LastReaderState := NewState;
+end;
+
+function TPCSCConnector.ReadSFIRecord(sfi, rnum: byte; var sw: Word): AnsiString;
+begin
+  Result := '';
+  if (rnum > $10) then exit;
+  Result := '';
+  if not GetResponseFromCard(
+        #$00#$B2 + AnsiChar(rnum) + AnsiChar((sfi shl 3) or $04) + #$00, Result, sw)
+  then
+    Result := '';
+
+  if Hi(sw) = $6C then
+  begin
+    Result := '';
+    if not GetResponseFromCard(
+          #$00#$B2 + AnsiChar(rnum) + AnsiChar((sfi shl 3) or $04) + AnsiChar(Lo(sw)), Result, sw)
+    then
+      Result := '';
+  end;
 end;
 
 procedure TPCSCConnector.CardInsertedAction;

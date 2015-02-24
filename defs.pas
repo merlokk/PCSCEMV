@@ -4,6 +4,13 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, System.AnsiStrings;
 
+type
+  TLogger = procedure(s: string);
+
+var
+  SLogger: TLogger = Nil;
+
+procedure AddLog(s: string);
 
 function Hex2Bin(input: string): AnsiString;
 function Bin2HexExt(const input:AnsiString; const spaces, upcase: boolean): string;
@@ -15,6 +22,10 @@ const
 
 implementation
 
+procedure AddLog(s: string);
+begin
+  if Assigned(SLogger) then SLogger(s);
+end;
 
 function Hex2Bin(input: string): AnsiString;
 var

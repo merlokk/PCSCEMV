@@ -65,6 +65,16 @@ object Form1: TForm1
       Caption = 'Show ATR and reader params'
       TabOrder = 3
     end
+    object cbTLV: TCheckBox
+      Left = 16
+      Top = 79
+      Width = 217
+      Height = 17
+      Caption = 'Show TLV decoding'
+      Checked = True
+      State = cbChecked
+      TabOrder = 4
+    end
   end
   object Memo1: TMemo
     Left = 0

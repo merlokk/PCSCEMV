@@ -16,6 +16,7 @@ type
     Memo1: TMemo;
     Button1: TButton;
     cbATR: TCheckBox;
+    cbTLV: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure btRefreshClick(Sender: TObject);
@@ -23,7 +24,6 @@ type
     { Private declarations }
 
     procedure ClearLog;
-    procedure AddLog(s: string);
   public
     { Public declarations }
   end;
@@ -31,21 +31,13 @@ type
 var
   Form1: TForm1;
 
-const
-  AIDList: array of AnsiString = [
-    'A0000000031010',
-    'A0000000032010',
-    'A0000000033010',
-    'A0000000038010',
-    'A0000000038002'];
-
 implementation
 
 {$R *.dfm}
 
-procedure TForm1.AddLog(s: string);
+procedure LoggerAddLog(s: string);
 begin
-  Memo1.Lines.Add(s);
+  Form1.Memo1.Lines.Add(s);
 end;
 
 procedure TForm1.btRefreshClick(Sender: TObject);
@@ -83,10 +75,11 @@ var
   pcscC: TPCSCConnector;
   Result: boolean;
 //  a: ATRrec;
-  strRes: AnsiString;
+//  strRes: AnsiString;
   i: Integer;
-  sw: word;
-  tlv: TTLV;
+//  sw: word;
+//  tlv: TTLV;
+  emv: TEMV;
 begin
   try
     if cbReaders.ItemIndex < 0 then exit;
@@ -100,6 +93,7 @@ begin
 
     AddLog('PCSC inited. readers count=' + IntToStr(pcscC.NumReaders));
 
+    emv := nil;
     try
       Result := pcscC.Open;
       if not Result then
@@ -132,68 +126,24 @@ begin
         exit;
       end;
 
+      emv := TEMV.Create(pcscC);
+      emv.LoggingTLV := cbTLV.Checked;
 
       AddLog('* Trying  PSE');
-      strRes := pcscC.CardSelect('1PAY.SYS.DDF01', sw);
-      if sw <> $9000 then
+      emv.GetAIDsByPSE('1PAY.SYS.DDF01');
+      emv.GetAIDsByPSE('2PAY.SYS.DDF01');
+
+      emv.AIDList.Clear; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      if emv.AIDList.Count < 1 then
       begin
-        AddLog('1PAY.SYS.DDF01 not found');
-      end
-      else
-      begin
-        AddLog('1PAY.SYS.DDF01 catalog parsing result:');
-      end;
+        AddLog('The card have no PSE, switching to List of AIDs');
 
-      strRes := pcscC.CardSelect('2PAY.SYS.DDF01', sw);
-      if sw <> $9000 then
-      begin
-        AddLog('2PAY.SYS.DDF01 not found');
-      end
-      else
-      begin
-        AddLog('****' + Bin2HexExt(strRes, true, true));
-        tlv := TTLV.Create;
-        if tlv.Deserealize(strRes) then
-        begin
-          AddLog('2PAY.SYS.DDF01 catalog parsing result:');
-          AddLog(tlv.GetStrTree);
-        end
-        else
-          AddLog('TLV parsing error.');
-
-        tlv.Destroy;
-      end;
-
-      AddLog('The card have no PSE, switching to List of AIDs');
-
-      for i := 0 to length(AIDList) - 1 do
-      begin
-        strRes := pcscC.CardSelect(Hex2Bin(AIDList[i]), sw);
-        if sw = $6283 then
-        begin
-          AddLog('Card blocked. Exit.');
-          exit;
-        end;
-        if sw = $6A81 then
-        begin
-          AddLog('App blocked. Next.');
-          continue;
-        end;
-
-        if sw <> $9000 then
-        begin
-          AddLog(AIDList[i] + ' not found');
-        end
-        else
-        begin
-          //9000 - ok, add to list
-          AddLog(AIDList[i] + ' found');
-
-        end;
+        emv.GetAIDsByConstAIDList;
       end;
 
      AddLog('* * * List Definition Files:');
- //    for i := 0 to length(AIDList) - 1 do
+     for i := 0 to emv.AIDList.Count - 1 do
+       AddLog('- ' + emv.AIDList[i].ToString);
 
 
      AddLog('* * * Select Definition File A0000000031010');
@@ -231,6 +181,8 @@ begin
       Move(data[9], CounterNum, 4);
                   }
     finally
+      emv.Free;
+
       AddLog('PCSC done');
       if pcscC.Connected then pcscC.Disconnect;
       if pcscC.Opened then pcscC.Close;
@@ -246,6 +198,7 @@ procedure TForm1.ClearLog;
 begin
   Memo1.Lines.Clear;
   Memo1.Lines.Add(FormatDateTime('', Now));
+  SLogger := LoggerAddLog;
 end;
 
 procedure TForm1.FormCreate(Sender: TObject);
