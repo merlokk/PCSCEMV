@@ -8,7 +8,7 @@ uses
 
 
 const
-  ConstAIDList: array of AnsiString = [
+  ConstAIDList: array of string = [
     'A0000000031010',
     'A0000000032010',
     'A0000000033010',
@@ -356,7 +356,7 @@ begin
   res := FpcscC.CardSelect(PseAID, sw);
   if sw <> $9000 then
   begin
-    AddLog(PseAID + ' not found');
+    AddLog(Bin2HexExt(PseAID, false, true) + ' not found');
   end
   else
   begin
@@ -364,7 +364,7 @@ begin
     tlv := TTLV.Create;
     if tlv.Deserealize(res) and (tlv.Tag = #$6F) then
     begin
-      AddLog(PseAID + ' catalog parsing result:');
+      AddLog(Bin2HexExt(PseAID, false, true) + ' catalog parsing result:');
       if LoggingTLV then AddLog(tlv.GetStrTree);
 
       // Reading via Short File Identifier (SFI)
@@ -417,11 +417,13 @@ begin
       elm := tlv.FindPath([#$A5, #$BF#$0C]);
       if (elm <> nil) and (elm.vTag = teFCIIDD) then
         if fci.Deserialize(elm) then
-          AIDList.Add(fci.AppTemplate); // add to result here
+          AIDList.Add(fci.AppTemplate) // add to result here
+        else
+          AddLog('(FCI) Issuer Discretionary Data: parsing error.');
 
     end
     else
-      AddLog(PseAID + ': TLV parsing error.');
+      AddLog(Bin2HexExt(PseAID, false, true) + ': TLV parsing error.');
 
     tlv.Free;
   end;
@@ -430,8 +432,6 @@ end;
 { tlvAppTemplate }
 
 function tlvAppTemplate.Deserialize(elm: TTLV): boolean;
-var
-  elmt: TTLV;
 begin
   Result := true;
 
