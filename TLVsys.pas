@@ -54,12 +54,13 @@ begin
   repeat
     Tag := Tag + s[indx];
     if not StrSafeInc(s, indx) then exit;
-  until byte(s[indx]) and $80 <> 0;
+  until byte(s[indx]) and $80 = 0;
 
   // length byte (1-byte)
   strlen := s[indx];
   if not StrSafeInc(s, indx) then exit;
   k := byte(strlen[1]);
+  if k = 0 then exit; // length==0 ---- wrong!!!!
 
   if k and $80 <> 0 then
   begin  // multibyte length

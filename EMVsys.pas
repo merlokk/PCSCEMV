@@ -9,6 +9,10 @@ uses
 type
   TagsEnum = (teUnknown, teGGG, teLast);
 
+  TTLV = class;
+
+  TIteratorRef = reference to procedure(elm: TTLV);
+
   TTLV = class
   private
     FTLV: TLVrec;
@@ -17,6 +21,9 @@ type
   public
     Items: TObjectList<TTLV>;
     Parent: TTLV;
+    Level: integer;
+
+    IteratorRef: TIteratorRef;
 
     // TLV
     property Tag: AnsiString read FTLV.Tag write FTLV.Tag;
@@ -37,6 +44,9 @@ type
     procedure DisasembleToElements;
 
     function GetStrTree: string;
+
+    procedure SetIterator(it: TIteratorRef);
+    procedure Iterate;
   end;
 
 implementation
@@ -47,6 +57,7 @@ procedure TTLV.Clear;
 begin
   FTLV.Clear;
   Parent := nil;
+  Level := 0;
   Items.Clear;
 end;
 
@@ -79,6 +90,7 @@ begin
   begin
     tlv := TTLV.Create;
     tlv.Parent := Self;
+    tlv.Level := Level + 1;
     indx := tlv.FTLV.PartDeserealize(Copy(Value, oldi, length(Value)));
     if indx >= 0 then
     begin
@@ -102,53 +114,22 @@ end;
 
 function TTLV.GetStrTree: string;
 var
- st: TStack<integer>;
- elm: TTLV;
- indx: integer;
+ res: string;
 begin
   Result := '';
 
-  st := TStack<integer>.Create;
-  elm := Self;
-  indx := 0;
+  res := '';
+  SetIterator(
+      procedure(elm: TTLV)
+        begin
+          res := res + StringOfChar('#', elm.Level + 1) +
+            Bin2HexExt(elm.Tag, false, true) + ':(' +
+              GetEMVTag(elm.Tag).Name + ') ' +
+              Bin2HexExt(elm.Value, true, true) + #$0D#$0A;
+        end);
+  Iterate;
 
-  while true do
-  begin
-    Result := Result +
-      Bin2HexExt(elm.Tag, false, true) + ':(' +
-        GetEMVTag(elm.Tag).Name + ') ' +
-        Bin2HexExt(elm.Value, true, true) + #$0D#$0A;
-
-    // go down
-    if elm.Items.Count > 0 then
-    begin
-      st.Push(indx);
-      indx := 0;
-      elm := elm.Items[0];
-
-      continue;
-    end;
-
-    // next element
-    indx := indx + 1;
-
-    // go up
-    if Items.Count <= indx then
-    begin
-      // cant go up
-      if st.Count = 0 then break;
-
-      indx := st.Pop;
-      indx := indx + 1; ///  здесь проверка на то что оно не вышло!!!!!   рекурсия
-      elm := elm.Parent;
-      if elm = nil then break;
-    end;
-
-
-    if elm = nil then break;
-  end;
-
-  st.Free;
+  Result := res;
 end;
 
 function TTLV.GetvTag: TagsEnum;
@@ -157,9 +138,26 @@ begin
 
 end;
 
+procedure TTLV.Iterate;
+var
+  i: Integer;
+begin
+  if Assigned(IteratorRef) then IteratorRef(Self);
+
+  for i := 0 to Items.Count - 1 do Items[i].Iterate;
+end;
+
 function TTLV.Serialize: AnsiString;
 begin
   Result := FTLV.Serialize;
+end;
+
+procedure TTLV.SetIterator(it: TIteratorRef);
+var
+  i: Integer;
+begin
+  IteratorRef := it;
+  for i := 0 to Items.Count - 1 do Items[i].SetIterator(it);
 end;
 
 end.
