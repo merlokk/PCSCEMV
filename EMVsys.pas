@@ -17,11 +17,13 @@ const
 
 type
   TagsEnum = (teUnknown,
+    teFCIPT,              // A5   File Control Information (FCI) Proprietary Template
     teFCIIDD,             // BF0C File Control Information (FCI) Issuer Discretionary Data
     teAppTemplate,        // 61   Application Template
     teLast);
 
   TTLV = class;
+  PtlvFCIPT = ^tlvFCIPT;
 
   // Application Template
   tlvAppTemplate = packed record
@@ -33,6 +35,8 @@ type
 
     function Deserialize(elm: TTLV): boolean;
     function ToString: string;
+
+    procedure Assign(fcipt: PtlvFCIPT);
   end;
 
   // (FCI) Issuer Discretionary Data
@@ -43,6 +47,21 @@ type
 
     function Deserialize(elm: TTLV): boolean;
   end;
+
+  // (FCI) Proprietary Template
+  tlvFCIPT = packed record
+    Valid: boolean;
+
+    SFI,
+    ApplicationLabel,
+    ApplicationPriority,
+    LanguagePreference: AnsiString;
+
+    FCIDDD: tlvFCIDDD;
+
+    function Deserialize(elm: TTLV): boolean;
+  end;
+
 
   TIteratorRef = reference to procedure(elm: TTLV);
 
@@ -237,6 +256,8 @@ function TTLV.GetvTag: TagsEnum;
 begin
   Result := teUnknown;
 
+  // A5 File Control Information (FCI) Proprietary Template
+  if Tag = #$A5 then Result := teFCIPT;
   // BF0C File Control Information (FCI) Issuer Discretionary Data
   if Tag = #$BF#$0C then Result := teFCIIDD;
   // 61 Application Template
@@ -297,7 +318,8 @@ var
   sw: word;
   tlv,
   elm: TTLV;
-  fci: tlvFCIDDD;
+  fci: tlvFCIPT;
+  appt: tlvAppTemplate;
 begin
   for i := 0 to length(ConstAIDList) - 1 do
   begin
@@ -327,11 +349,15 @@ begin
       if tlv.Deserealize(res) and (tlv.Tag = #$6F) then
       begin
         if LoggingTLV then AddLog(tlv.GetStrTree);
-        elm := tlv.FindPath([#$A5, #$BF#$0C]);
-        if (elm <> nil) and (elm.vTag = teFCIIDD) then
+        elm := tlv.FindPath([#$A5]);
+        if (elm <> nil) and (elm.vTag = teFCIPT) then
           if fci.Deserialize(elm) then
-            AIDList.Add(fci.AppTemplate); // add to result here
+          begin
+            appt.Assign(@fci);
+            appt.AID := Hex2Bin(ConstAIDList[i]);
 
+            AIDList.Add(appt); // add to result here
+          end
       end
       else
         AddLog(ConstAIDList[i] + ': TLV parsing error.');
@@ -431,6 +457,16 @@ end;
 
 { tlvAppTemplate }
 
+procedure tlvAppTemplate.Assign(fcipt: PtlvFCIPT);
+begin
+  Valid := false;
+  if not assigned(fcipt) then exit;
+
+  ApplicationLabel := fcipt^.ApplicationLabel;
+  ApplicationPriority := fcipt^.ApplicationPriority;
+  Valid := fcipt^.Valid;
+end;
+
 function tlvAppTemplate.Deserialize(elm: TTLV): boolean;
 begin
   Result := true;
@@ -465,9 +501,38 @@ var
 begin
   Result := false;
 
+  AppTemplate.Valid := false;
   elm61 := elm.FindPath([#$61]);
   if elm61 <> nil then
     Result := AppTemplate.Deserialize(elm61);
+
+  Valid := Result;
+end;
+
+{ tlvFCIPT }
+
+function tlvFCIPT.Deserialize(elm: TTLV): boolean;
+var
+  telm: TTLV;
+begin
+  Result := true;
+
+  // 50 Application Label
+  Result := Result and elm.GetPathValue([#$50], ApplicationLabel);
+
+  // 88 Short File Identifier (SFI)
+  elm.GetPathValue([#$88], SFI);
+
+  // 87 Application Priority Indicator
+  elm.GetPathValue([#$87], ApplicationPriority);
+
+  // 5F2D Language Preference
+  elm.GetPathValue([#$5F#$2D], LanguagePreference);
+
+  FCIDDD.Valid := false;
+  telm := elm.FindPath([#$BF#$0C]);
+  if telm <> nil then
+    FCIDDD.Deserialize(telm);
 
   Valid := Result;
 end;
