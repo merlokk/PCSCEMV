@@ -151,6 +151,12 @@ begin
      // select definition file
      emv.SelectAppByList;
 
+     if emv.SelectedAID = '' then
+     begin
+       AddLog('* Cant select app. EXIT!');
+       exit;
+     end;
+
      AddLog('* * * Get Processing Options');
 { 9F66 04 9F02 06 9F37 04 5F2A 02
 
@@ -168,7 +174,17 @@ Tag	Name	Length
 '9F35'	Terminal Type	'01'
 '9F40'	Additional Terminal Capabilities	'05'
 }
-     if not emv.GPO(nil) then exit;
+     // 9F1A	Terminal Country Code
+     emv.SetGPO_PDOL(#$9F#$1A, 'ru');
+
+     AddLog('PDOL: ');
+     AddLog(emv.FCIPTSelectedApp.PDOL.DecodeStr('^'));
+
+     if not emv.GPO then
+     begin
+       AddLog('GPO failed(');
+       exit;
+     end;
 
     finally
       emv.Free;

@@ -15,6 +15,8 @@ type
     function Serialize: AnsiString;
     function Deserealize(s: AnsiString): boolean;
     function PartDeserealize(s: AnsiString): integer;
+
+    function ExtractTag(s: AnsiString; var vtag: AnsiString; var indx: Integer): boolean;
   end;
 
 implementation
@@ -33,6 +35,25 @@ begin
   Result := PartDeserealize(s) >= 0;
 end;
 
+function TLVrec.ExtractTag(s: AnsiString; var vtag: AnsiString; var indx: Integer): boolean;
+begin
+  Result := false;
+
+  // Tag length - 1byte
+  indx := 1;
+  vtag := s[indx];
+  if not StrSafeInc(s, indx) then exit;
+
+  // Tag length more than 1 byte
+  if byte(vtag[1]) and $1F = $1F then
+  repeat
+    vtag := vtag + s[indx];
+    if not StrSafeInc(s, indx) then exit;
+  until byte(s[indx]) and $80 = 0;
+
+  Result := true;
+end;
+
 function TLVrec.PartDeserealize(s: AnsiString): integer;
 var
   indx: integer;
@@ -44,17 +65,8 @@ begin
   Clear;
   if Length(s) < 2 then exit;
 
-  // Tag length - 1byte
-  indx := 1;
-  Tag := s[indx];
-  if not StrSafeInc(s, indx) then exit;
-
-  // Tag length more than 1 byte
-  if byte(Tag[1]) and $1F = $1F then
-  repeat
-    Tag := Tag + s[indx];
-    if not StrSafeInc(s, indx) then exit;
-  until byte(s[indx]) and $80 = 0;
+  // extract tag
+  if not ExtractTag(s, Tag, indx) then exit;
 
   // length byte (1-byte)
   strlen := s[indx];

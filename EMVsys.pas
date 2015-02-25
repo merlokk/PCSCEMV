@@ -26,6 +26,16 @@ type
   TTLV = class;
   PtlvFCIPT = ^tlvFCIPT;
 
+  // PDOL
+  PDOLrec = packed record
+    Tag: AnsiString;
+    Len: byte;
+    Value: AnsiString;
+
+    function Serialize: AnsiString;
+    procedure Clear;
+  end;
+
   // Application Template
   tlvAppTemplate = packed record
     Valid: boolean;
@@ -55,8 +65,11 @@ type
   tlvPDOL = packed record
     Valid: boolean;
 
+    Items: array of PDOLrec;
 
+    function SetTagValue(Tag, Value: AnsiString): boolean;
     function Deserialize(elm: TTLV): boolean;
+    function DecodeStr(prefix: string = ''): string;
   end;
 
   // (FCI) Proprietary Template
@@ -137,7 +150,8 @@ type
     procedure SelectApp(aid: AnsiString);
     procedure SelectAppByList;
 
-    function GPO(pdol: TTLV): boolean;
+    function SetGPO_PDOL(tag, val: AnsiString): boolean;
+    function GPO: boolean;
 
     constructor Create(pcscC: TPCSCConnector);
     destructor Destroy; override;
@@ -260,6 +274,7 @@ end;
 function TTLV.GetStrTree: string;
 var
  res: string;
+ pdol: tlvPDOL;
 begin
   Result := '';
 
@@ -271,6 +286,11 @@ begin
             Bin2HexExt(elm.Tag, false, true) + ':(' +
               GetEMVTag(elm.Tag).Name + ') ' +
               Bin2HexExt(elm.Value, true, true) + #$0D#$0A;
+
+          // PDOL
+          if elm.vTag = tePDOL then
+            if pdol.Deserialize(elm) then
+              res := res + pdol.DecodeStr(StringOfChar('^', elm.Level + 2));
         end);
   Iterate;
 
@@ -494,7 +514,7 @@ begin
     Result := FSelectedAID;
 end;
 
-function TEMV.GPO(pdol: TTLV): boolean;
+function TEMV.GPO: boolean;
 var
   data: AnsiString;
   sw: word;
@@ -552,6 +572,14 @@ begin
     end;
 
   if aid <> '' then SelectApp(aid);
+end;
+
+function TEMV.SetGPO_PDOL(tag, val: AnsiString): boolean;
+begin
+  Result := false;
+  if not FCIPTSelectedApp.PDOL.Valid then exit;
+
+  Result := FCIPTSelectedApp.PDOL.SetTagValue(tag, val);
 end;
 
 { tlvAppTemplate }
@@ -650,9 +678,98 @@ end;
 
 { tlvPDOL }
 
-function tlvPDOL.Deserialize(elm: TTLV): boolean;
+function tlvPDOL.DecodeStr(prefix: string): string;
+var
+  i: Integer;
 begin
+  Result := '';
 
+  if not Valid then
+  begin
+    Result := prefix + 'PDOL not valid!' + #$0D#$0A;
+    exit;
+  end;
+
+  for i := 0 to length(Items) - 1 do
+  begin
+    Result := Result + prefix +
+            Bin2HexExt(Items[i].Tag, false, true) + ':(' +
+              GetEMVTag(Items[i].Tag).Name + ') len:' +
+              IntToStr(Items[i].Len);
+    if Items[i].Value <> '' then
+      Result := Result + ' val:"' + Items[i].Value + '"';
+
+    Result := Result + #$0D#$0A
+  end;
+end;
+
+function tlvPDOL.Deserialize(elm: TTLV): boolean;
+var
+  r: TLVrec;
+  s: AnsiString;
+  rec: PDOLrec;
+  indx: integer;
+begin
+  Result := false;
+  Valid := false;
+  SetLength(Items, 0);
+  if elm = nil then exit;
+
+  s := elm.Value;
+  if s = '' then exit;
+
+  // (Tag - length) list
+  indx := 1;
+  rec.Clear;
+
+  while True do // @@@ not tested!!!!
+  begin
+    if not r.ExtractTag(s, rec.Tag, indx) then exit;
+    rec.Len := byte(s[indx]);
+
+    SetLength(Items, length(Items) + 1);
+    Items[length(Items) - 1] := rec; // here... may be it needs a COPY!!!
+
+    if not StrSafeInc(s, indx) then break;
+  end;
+
+  Result := true;
+  Valid := true;
+end;
+
+function tlvPDOL.SetTagValue(Tag, Value: AnsiString): boolean;
+var
+  i: Integer;
+begin
+  Result := false;
+  for i := 0 to length(Items) - 1 do
+    if Items[i].Tag = Tag then
+    begin
+      Items[i].Value := Value;
+      Result := true;
+      exit;
+    end;
+end;
+
+{ PDOLrec }
+
+procedure PDOLrec.Clear;
+begin
+  Tag := '';
+  Len := 0;
+  Value := '';
+end;
+
+function PDOLrec.Serialize: AnsiString;
+var
+  val: AnsiString;
+begin
+  val := Value;
+  if length(val) > Len then
+    val := Copy(val, 1, length(val));
+  if length(val) < Len then
+    val := AnsiString(StringOfChar(#$00, Len - length(val))) + val;
+  Result := Tag + val;
 end;
 
 end.
