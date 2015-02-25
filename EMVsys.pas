@@ -33,6 +33,8 @@ type
     ApplicationLabel,
     ApplicationPriority: AnsiString;
 
+    function GetApplicationPriority: integer;
+
     function Deserialize(elm: TTLV): boolean;
     function ToString: string;
 
@@ -106,13 +108,26 @@ type
   TEMV = class
   private
     FpcscC: TPCSCConnector;
+
+    FSelectedAID: AnsiString;
+
+    function GetSelectedAID: AnsiString;
   public
     LoggingTLV: boolean;
 
     AIDList: TList<tlvAppTemplate>;
+    TLVSelectedApp: TTLV;
+    FCIPTSelectedApp: tlvFCIPT;
+
+    property SelectedAID: AnsiString read GetSelectedAID;
 
     procedure GetAIDsByPSE(PseAID: AnsiString);
     procedure GetAIDsByConstAIDList;
+
+    procedure SelectApp(aid: AnsiString);
+    procedure SelectAppByList;
+
+    function GPO(pdol: TTLV): boolean;
 
     constructor Create(pcscC: TPCSCConnector);
     destructor Destroy; override;
@@ -293,6 +308,9 @@ procedure TEMV.Clear;
 begin
   LoggingTLV := false;
   AIDList.Clear;
+  TLVSelectedApp.Clear;
+  FCIPTSelectedApp.Valid := false;
+  FSelectedAID := '';
 end;
 
 constructor TEMV.Create;
@@ -301,12 +319,14 @@ begin
 
   AIDList := TList<tlvAppTemplate>.Create;
   FpcscC := pcscC;
+  TLVSelectedApp := TTLV.Create;
   Clear;
 end;
 
 destructor TEMV.Destroy;
 begin
 
+  TLVSelectedApp.Destroy;
   AIDList.Destroy;
   inherited;
 end;
@@ -382,7 +402,7 @@ begin
   res := FpcscC.CardSelect(PseAID, sw);
   if sw <> $9000 then
   begin
-    AddLog(Bin2HexExt(PseAID, false, true) + ' not found');
+    AddLog(string(PseAID) + ' not found');
   end
   else
   begin
@@ -390,7 +410,7 @@ begin
     tlv := TTLV.Create;
     if tlv.Deserealize(res) and (tlv.Tag = #$6F) then
     begin
-      AddLog(Bin2HexExt(PseAID, false, true) + ' catalog parsing result:');
+      AddLog(string(PseAID) + ' catalog parsing result:');
       if LoggingTLV then AddLog(tlv.GetStrTree);
 
       // Reading via Short File Identifier (SFI)
@@ -455,6 +475,72 @@ begin
   end;
 end;
 
+function TEMV.GetSelectedAID: AnsiString;
+begin
+  Result := '';
+  if FCIPTSelectedApp.Valid then
+    Result := FSelectedAID;
+end;
+
+function TEMV.GPO(pdol: TTLV): boolean;
+var
+  res: string;
+begin
+  Result := false;
+
+
+  res := FpcscC.GetResponseFromCard(#$80#$A8#$00#$00#$00);
+  AddLog('****' + Bin2HexExt(res, true, true));
+
+  Result := true;
+end;
+
+procedure TEMV.SelectApp(aid: AnsiString);
+var
+  res: AnsiString;
+  sw: word;
+  elm: TTLV;
+begin
+  FSelectedAID := '';
+  res := FpcscC.CardSelect(aid, sw);
+
+  AddLog('* * * Select Definition File ' + Bin2HexExt(aid, true, true));
+  AddLog('****' + Bin2HexExt(res, true, true));
+
+  if TLVSelectedApp.Deserealize(res) and (TLVSelectedApp.Tag = #$6F) then
+  begin
+    if LoggingTLV then AddLog(TLVSelectedApp.GetStrTree);
+    elm := TLVSelectedApp.FindPath([#$A5]);
+    if (elm <> nil) and (elm.vTag = teFCIPT) then
+      FCIPTSelectedApp.Deserialize(elm);
+  end
+  else
+    AddLog(Bin2HexExt(aid, true, true) + ': TLV parsing error.');
+
+  if FCIPTSelectedApp.Valid then
+    FSelectedAID := aid;
+end;
+
+procedure TEMV.SelectAppByList;
+var
+  aid: AnsiString;
+  prio: integer;
+  i: Integer;
+begin
+  if AIDList.Count = 0 then exit;
+  aid := AIDList[0].AID;
+  prio := AIDList[0].GetApplicationPriority;
+
+  for i := 1 to AIDList.Count - 1 do
+    if prio > AIDList[0].GetApplicationPriority then
+    begin
+      aid := AIDList[i].AID;
+      prio := AIDList[i].GetApplicationPriority;
+    end;
+
+  if aid <> '' then SelectApp(aid);
+end;
+
 { tlvAppTemplate }
 
 procedure tlvAppTemplate.Assign(fcipt: PtlvFCIPT);
@@ -481,6 +567,13 @@ begin
   elm.GetPathValue([#$87], ApplicationPriority);
 
   Valid := Result;
+end;
+
+function tlvAppTemplate.GetApplicationPriority: integer;
+begin
+  Result := 70000;
+  if length(ApplicationPriority) > 0 then
+    Result := byte(ApplicationPriority[1]);
 end;
 
 function tlvAppTemplate.ToString: string;

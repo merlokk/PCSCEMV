@@ -87,11 +87,11 @@ begin
 
     pcscC := TPCSCConnector.Create(Application);
 
-    AddLog('PCSC init');
+    AddLog('* PCSC init');
     pcscC.Init;
     pcscC.UseReaderNum := cbReaders.ItemIndex;
 
-    AddLog('PCSC inited. readers count=' + IntToStr(pcscC.NumReaders));
+    AddLog('* PCSC inited. readers count=' + IntToStr(pcscC.NumReaders));
 
     emv := nil;
     try
@@ -102,12 +102,12 @@ begin
         exit;
       end;
 
-      AddLog('PCSC opened');
+      AddLog('* PCSC opened');
 
       Result := pcscC.Connect;
       if not Result then exit;
 
-      AddLog('PCSC connected. InterfaceState=' + IntToStr(pcscC.AttrInterfaceStatus) +' protocol=' + IntToStr(pcscC.AttrProtocol));
+      AddLog('* PCSC connected. InterfaceState=' + IntToStr(pcscC.AttrInterfaceStatus) +' protocol=' + IntToStr(pcscC.AttrProtocol));
       if cbATR.Checked then
       begin
         AddLog('ICC=' + pcscC.AttrICCType);
@@ -129,14 +129,16 @@ begin
       emv := TEMV.Create(pcscC);
       emv.LoggingTLV := cbTLV.Checked;
 
-      AddLog('* Trying  PSE');
+      AddLog('');
+      AddLog('* * * Trying  PSE');
       emv.GetAIDsByPSE('1PAY.SYS.DDF01');
       emv.GetAIDsByPSE('2PAY.SYS.DDF01');
 
       emv.AIDList.Clear; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       if emv.AIDList.Count < 1 then
       begin
-        AddLog('The card have no PSE, switching to List of AIDs');
+        AddLog('');
+        AddLog('* * * The card have no PSE, switching to List of AIDs');
 
         emv.GetAIDsByConstAIDList;
       end;
@@ -145,45 +147,17 @@ begin
      for i := 0 to emv.AIDList.Count - 1 do
        AddLog('- ' + emv.AIDList[i].ToString);
 
+     AddLog('');
+     // select definition file
+     emv.SelectAppByList;
 
-     AddLog('* * * Select Definition File A0000000031010');
-           {
-      strRes := pcscC.GetResponseFromCard(Hex2Bin('00100000080102030400000000'));
-      if strRes <> #$90#$00 then
-       begin
-        Result := false;
-        exit;
-       end;
+     AddLog('* * * Get Processing Options');
+     if not emv.GPO(nil) then exit;
 
-      CreditData := #00#00#00#00#00#00#00#00;
-      move(Tariff, CreditData[1], 4);
-      move(Credit, CreditData[5], 4);
-
-      data := Hex2Bin('01020304');
-      pcscC.GetResponseFromCard(Hex2Bin('0014000004'), data, sw1, sw2);
-      if length(data) <> 8 then
-       begin
-        Result := false;
-        exit;
-       end;
-      Move(data[1], Tariff, 4);
-      Move(data[5], Credit, 4);
-
-      data := Hex2Bin('01020304');
-      pcscC.GetResponseFromCard(Hex2Bin('0016000004'), data, sw1, sw2);
-      if length(data) <> 20 then
-       begin
-        Result := false;
-        exit;
-       end;
-      Move(data[1], Debt, 4);
-      Move(data[5], CounterKWT, 4);
-      Move(data[9], CounterNum, 4);
-                  }
     finally
       emv.Free;
 
-      AddLog('PCSC done');
+      AddLog('* PCSC done');
       if pcscC.Connected then pcscC.Disconnect;
       if pcscC.Opened then pcscC.Close;
 
