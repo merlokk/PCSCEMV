@@ -152,6 +152,22 @@ begin
      emv.SelectAppByList;
 
      AddLog('* * * Get Processing Options');
+{ 9F66 04 9F02 06 9F37 04 5F2A 02
+
+9F66  квалификаторы транзакции для терминала. В простейшем случае может иметь вид: 86 40 00 00 // в нашем случаи A6 00 00 00
+9F02 - сумма транзакции. Если не знаете - подставьте фиктивное значение, например 1000 руб. будет в виде: 00 00 00 10 00 00  // в нашем случаи 1 грн =00 00 00 00 01 00
+9F37 - случайное число. Подставьте произвольные 4 байта, например: 01 23 45 67
+5F2A - код валюты транзакции. Для рублей будет в виде: 09 99
+
+Это из карты при селекте.
+The data the terminal should send to the card is given in the PDOL. The PDOL is stored in the FCI of the ADF and has the tag '9F38'. The PDOL only contains the expected tagname and length.
+9F 33 03 9F 1A 02 9F 35 01 9F 40 05
+Tag	Name	Length
+'9F33'	Terminal Capabilities	'03'
+'9F1A'	Terminal Country Code	'02'
+'9F35'	Terminal Type	'01'
+'9F40'	Additional Terminal Capabilities	'05'
+}
      if not emv.GPO(nil) then exit;
 
     finally

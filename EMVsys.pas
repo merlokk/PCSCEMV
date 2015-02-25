@@ -18,6 +18,7 @@ const
 type
   TagsEnum = (teUnknown,
     teFCIPT,              // A5   File Control Information (FCI) Proprietary Template
+    tePDOL,               // 9F38 Processing Options Data Object List (PDOL)
     teFCIIDD,             // BF0C File Control Information (FCI) Issuer Discretionary Data
     teAppTemplate,        // 61   Application Template
     teLast);
@@ -50,6 +51,14 @@ type
     function Deserialize(elm: TTLV): boolean;
   end;
 
+  // 9F38 Processing Options Data Object List (PDOL)
+  tlvPDOL = packed record
+    Valid: boolean;
+
+
+    function Deserialize(elm: TTLV): boolean;
+  end;
+
   // (FCI) Proprietary Template
   tlvFCIPT = packed record
     Valid: boolean;
@@ -59,6 +68,7 @@ type
     ApplicationPriority,
     LanguagePreference: AnsiString;
 
+    PDOL: tlvPDOL;
     FCIDDD: tlvFCIDDD;
 
     function Deserialize(elm: TTLV): boolean;
@@ -277,6 +287,8 @@ begin
   if Tag = #$BF#$0C then Result := teFCIIDD;
   // 61 Application Template
   if Tag = #$61 then Result := teAppTemplate;
+  //9F38 Processing Options Data Object List (PDOL)
+  if Tag = #$9F#$38 then Result := tePDOL;
 
 end;
 
@@ -484,13 +496,14 @@ end;
 
 function TEMV.GPO(pdol: TTLV): boolean;
 var
-  res: string;
+  data: AnsiString;
+  sw: word;
 begin
   Result := false;
 
-
-  res := FpcscC.GetResponseFromCard(#$80#$A8#$00#$00#$00);
-  AddLog('****' + Bin2HexExt(res, true, true));
+  data := #$04#$83#$02'ru';
+  FpcscC.GetResponseFromCard(#$80#$A8#$00#$00, data, sw);
+  AddLog('****' + Bin2HexExt(data, true, true));
 
   Result := true;
 end;
@@ -627,7 +640,19 @@ begin
   if telm <> nil then
     FCIDDD.Deserialize(telm);
 
+  PDOL.Valid := false;
+  telm := elm.FindPath([#$9F#$38]);
+  if telm <> nil then
+    PDOL.Deserialize(telm);
+
   Valid := Result;
+end;
+
+{ tlvPDOL }
+
+function tlvPDOL.Deserialize(elm: TTLV): boolean;
+begin
+
 end;
 
 end.
