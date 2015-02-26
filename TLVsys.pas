@@ -49,7 +49,7 @@ begin
   repeat
     vtag := vtag + s[indx];
     if not StrSafeInc(s, indx) then exit;
-  until byte(s[indx]) and $80 = 0;
+  until byte(s[indx - 1]) and $80 = 0;
 
   Result := true;
 end;

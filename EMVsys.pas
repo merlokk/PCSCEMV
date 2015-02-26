@@ -265,10 +265,12 @@ begin
       Items.Add(tlv);
       tlv.DisasembleToElements;
       oldi := oldi - 1 + indx;   // pointer to the next field
+      if oldi = length(Value) + 1 then exit; // all records readed ok
     end
     else
-    begin
+    begin // error reading records
       tlv.Free;
+      Items.Clear;
       break;
     end;
   end;
