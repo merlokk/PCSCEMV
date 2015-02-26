@@ -32,7 +32,7 @@ type
     Len: byte;
     Value: AnsiString;
 
-    function Serialize: AnsiString;
+    function SerializeValues: AnsiString;
     procedure Clear;
   end;
 
@@ -87,6 +87,13 @@ type
     function Deserialize(elm: TTLV): boolean;
   end;
 
+  // 83 Command Template
+  cmdCommandTemplate = packed record
+    PDOL: tlvPDOL;
+
+    procedure Clear;
+    function Serialize: AnsiString;
+  end;
 
   TIteratorRef = reference to procedure(elm: TTLV);
 
@@ -518,12 +525,33 @@ function TEMV.GPO: boolean;
 var
   data: AnsiString;
   sw: word;
+  cmd: cmdCommandTemplate;
 begin
   Result := false;
 
-  data := #$04#$83#$02'ru';
+  cmd.Clear;
+  cmd.PDOL := FCIPTSelectedApp.PDOL;
+  data := cmd.Serialize;
+
+  data := AnsiChar(byte(length(data))) + data;
   FpcscC.GetResponseFromCard(#$80#$A8#$00#$00, data, sw);
   AddLog('****' + Bin2HexExt(data, true, true));
+
+  if length(data) = 0 then exit;
+
+  case data[1] of
+  #$80: // 80 Response Message Template Format 1
+    begin
+
+    end;
+  #$77: // 77 Response Message Template Format 2
+    begin
+
+    end;
+
+  else
+    exit;
+  end;
 
   Result := true;
 end;
@@ -760,7 +788,7 @@ begin
   Value := '';
 end;
 
-function PDOLrec.Serialize: AnsiString;
+function PDOLrec.SerializeValues: AnsiString;
 var
   val: AnsiString;
 begin
@@ -769,7 +797,27 @@ begin
     val := Copy(val, 1, length(val));
   if length(val) < Len then
     val := AnsiString(StringOfChar(#$00, Len - length(val))) + val;
-  Result := Tag + val;
+  Result := val;
+end;
+
+{ cmdCommandTemplate }
+
+procedure cmdCommandTemplate.Clear;
+begin
+  SetLength(PDOL.Items, 0);
+  PDOL.Valid := false;
+end;
+
+function cmdCommandTemplate.Serialize: AnsiString;
+var
+  len: byte;
+  i: Integer;
+begin
+  Result := '';
+  for i := 0 to length(PDOL.Items) - 1 do
+    Result := Result + PDOL.Items[i].SerializeValues;
+  len := byte(length(Result));
+  Result := #$83 + AnsiChar(len) + Result;
 end;
 
 end.
