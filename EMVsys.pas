@@ -106,6 +106,15 @@ type
     function DecodeStr: string;
   end;
 
+  rAFL = packed record
+    SFI,
+    StartRecN,
+    EndRecN,
+    OfflineCount: byte;
+
+    function Deserialize(s: AnsiString): boolean;
+  end;
+
   // 80 Response Message Template Format 1
   tlvRespTmplF1 = packed record
     Valid: boolean;
@@ -114,6 +123,7 @@ type
     sAFL: AnsiString;
 
     AIP: rAIP;
+    AFL: array of rAFL;
 
     function Deserialize(data: AnsiString): boolean;
     function DecodeStr: string;
@@ -521,7 +531,7 @@ begin
             // deserealize records
             if sw = $9000 then
             begin
-              AddLog('SFI:' + IntToStr(sfi) + ' rec num:' + IntToStr(i));
+              AddLog('SFI: 0x' + IntToHex(sfi, 2) + ' rec num:' + IntToStr(i));
               AddLog('****' + Bin2HexExt(res, true, true));
 
               tlv.Clear;
@@ -573,6 +583,9 @@ var
   data: AnsiString;
   sw: word;
   cmd: cmdCommandTemplate;
+  tlv: TTLV;
+  i: Integer;
+  j: Integer;
 begin
   Result := false;
 
@@ -586,19 +599,50 @@ begin
 
   if length(data) = 0 then exit;
 
-  case data[1] of
-  #$80: // 80 Response Message Template Format 1
-    begin
-      GPORes1.Deserialize(data)
-      AddLog(GPORes1.DecodeStr);
-    end;
-  #$77: // 77 Response Message Template Format 2
-    begin
+  tlv := TTLV.Create;
+  try
+    case data[1] of
+    #$80: // 80 Response Message Template Format 1
+      begin
+        GPORes1.Deserialize(data);
+        if LoggingTLV then AddLog(GPORes1.DecodeStr);
+      end;
+    #$77: // 77 Response Message Template Format 2
+      begin
+        tlv.Deserealize(data);
+        if LoggingTLV then AddLog(tlv.GetStrTree);
+        GPORes2.Deserialize(tlv);
 
+        // TODO!!!!!
+
+      end;
+
+    else
+      exit;
     end;
 
-  else
-    exit;
+    AddLog('* * * Read records from AFL');
+    for i := 0 to length(GPORes1.AFL) - 1 do
+    begin
+      for j := GPORes1.AFL[i].StartRecN to GPORes1.AFL[i].EndRecN do
+      begin
+        AddLog('SFI: 0x' + IntToHex(GPORes1.AFL[i].SFI, 2) + ' rec num:' + IntToStr(j));
+        data := FpcscC.ReadSFIRecord(GPORes1.AFL[i].SFI shr 3, j, sw);
+        AddLog('****' + Bin2HexExt(data, true, true));
+        if sw <> $9000 then
+        begin
+          AddLog('Error reading records from AFL. exit.');
+          exit;
+        end;
+        if not tlv.Deserealize(data) then AddLog('TLV deserialize error');
+        if LoggingTLV then AddLog(tlv.GetStrTree);
+
+        // todo - add to list!!!
+      end;
+    end;
+
+  finally
+    tlv.Free;
   end;
 
   Result := true;
@@ -881,16 +925,29 @@ end;
 { tlvRespTmplF1 }
 
 function tlvRespTmplF1.DecodeStr: string;
+var
+  i: Integer;
 begin
-  Result := '';
-  Result := Result + 'AIP:' + #$0D#$0A + AIP.DecodeStr;
+  Result := 'Response Message Template Format 1 not valid!';
+  if not Valid then exit;  
+
+  Result := 'AIP:' + #$0D#$0A + AIP.DecodeStr;
+  Result := Result + 'AFL:' + #$0D#$0A;
+  for i := 0 to length(AFL) - 1 do
+    Result := Result + '0x' + IntToHex(AFL[i].SFI, 2) + ': ' +
+      IntToStr(AFL[i].StartRecN) + '-' + IntToStr(AFL[i].EndRecN) +
+      ' offl:' + IntToStr(AFL[i].OfflineCount) + #$0D#$0A;
 end;
 
 function tlvRespTmplF1.Deserialize(data: AnsiString): boolean;
+var
+  i: Integer;
 begin
   Valid := false;
   Result := false;
   AIP.Valid := false;
+  SetLength(AFL, 0);
+
   if (length(data) < 5) or
      (data[1] <> #$80) or
      (byte(data[2]) <> length(data) - 2)
@@ -900,11 +957,16 @@ begin
   sAFL := Copy(data, 5, length(data));
 
   if (length(sAIP) <> 2) or
-     ((length(sAFL) mod 3) <> 0)
+     ((length(sAFL) mod 4) <> 0)
   then exit;
 
   if not AIP.Deserialize(sAIP) then exit;
 
+  for i := 0 to length(sAFL) div 4 - 1 do
+  begin
+    SetLength(AFL, length(AFL) + 1);
+    if not AFL[Length(AFL) - 1].Deserialize(Copy(sAFL, 1 + i * 4, 4)) then exit;
+  end;
 
   Valid := true;
   Result := true;
@@ -940,6 +1002,27 @@ begin
   SDAsupported := (waip and $40 <> 0);
 
   Valid := true;
+  Result := true;
+end;
+
+{ rAFL }
+
+function rAFL.Deserialize(s: AnsiString): boolean;
+begin
+  Result := false;
+
+  SFI := 0;
+  StartRecN := 0;
+  EndRecN := 0;
+  OfflineCount := 0;
+
+  if Length(s) <> 4 then exit;
+
+  SFI := byte(s[1]);
+  StartRecN := byte(s[2]);
+  EndRecN := byte(s[3]);
+  OfflineCount := byte(s[4]);
+
   Result := true;
 end;
 

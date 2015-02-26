@@ -75,10 +75,11 @@ begin
   if k = 0 then exit; // length==0 ---- wrong!!!!
 
   if k and $80 <> 0 then
-  begin  // multibyte length     //@@@ not tested!
+  begin  // multibyte length     //@@@ not tested! multibyte with length more 2
     strlen := Copy(s, indx, k and $7F);
-    if not StrSafeInc(s, indx, k) then exit;
+    if not StrSafeInc(s, indx, k and $7F) then exit;
 
+    Len := 0;
     for i := 1 to Length(strlen) do
       Len := Len + (byte(strlen[i]) shl ((i - 1) * 8));
   end
