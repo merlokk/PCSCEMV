@@ -212,6 +212,9 @@ type
     function SetGPO_PDOL(tag, val: AnsiString): boolean;
     function GPO: boolean;
 
+    function AFLListGetParam(Tag: AnsiString): AnsiString;
+    function SDA: boolean;
+
     constructor Create(pcscC: TPCSCConnector);
     destructor Destroy; override;
 
@@ -400,6 +403,24 @@ begin
 end;
 
 { TEMV }
+
+function TEMV.AFLListGetParam(Tag: AnsiString): AnsiString;
+var
+  i: Integer;
+  tlv: TTLV;
+begin
+  Result := '';
+
+  for i := 0 to AFLList.Count - 1 do
+  begin
+    tlv := AFLList[i].FindPath(Tag);
+    if tlv <> nil then
+      begin
+        Result := tlv.Value;
+        break;
+      end;
+  end;
+end;
 
 procedure TEMV.Clear;
 begin
@@ -658,6 +679,29 @@ begin
   finally
     tlv.Free;
   end;
+
+  Result := true;
+end;
+
+function TEMV.SDA: boolean;
+var
+  PublicKey: AnsiString;
+  PubKeyIndx,
+  Certificate,
+  DecrCertificate : AnsiString;
+begin
+  Result := false;
+  AddLog('* SDA');
+  if FSelectedAID = '' then exit;
+
+  PubKeyIndx := AFLListGetParam(#$8F);
+  if length(PubKeyIndx) <> 1 then exit;
+
+  PublicKey := GetPublicKey(Copy(FSelectedAID, 1, 5), byte(PubKeyIndx[1]));
+  if PublicKey = '' then exit;
+
+  Certificate := AFLListGetParam(#$90);
+  DecrCertificate := Certificate; // !!!!!!!!!!!!!!!!
 
   Result := true;
 end;

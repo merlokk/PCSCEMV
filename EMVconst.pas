@@ -3,7 +3,7 @@ unit EMVconst;
 interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, System.AnsiStrings,
-  Generics.Collections;
+  Generics.Collections, EMVkeys, defs;
 
 type
   TEMVTag = packed record
@@ -21,20 +21,37 @@ type
 function GetEMVTag(Tag: AnsiString): TEMVTag;
 function DecodeAIP(aip: AnsiString): string;
 
+function GetPublicKey(RID: AnsiString; Index: byte): AnsiString;
+
 var
   EMVTags: TList<TEMVTag>;
 
 const
   AIPStr: Array [0..5] of TKeyValueItem = (
-	  (id: 01; Value:'CDA Supported (Combined Dynamic Data Authentication / Application Cryptogram Generation)'),
-	  (id: 04; Value:'Issuer authentication is supported'),
-	  (id: 08; Value:'Terminal risk management is to be performed'),
-	  (id: 10; Value:'Cardholder verification is supported'),
-	  (id: 20; Value:'DDA supported (Dynamic Data Authentication)'),
-	  (id: 40; Value:'SDA supported (Static Data Authentiction)')
+	  (id: $01; Value:'CDA Supported (Combined Dynamic Data Authentication / Application Cryptogram Generation)'),
+	  (id: $04; Value:'Issuer authentication is supported'),
+	  (id: $08; Value:'Terminal risk management is to be performed'),
+	  (id: $10; Value:'Cardholder verification is supported'),
+	  (id: $20; Value:'DDA supported (Dynamic Data Authentication)'),
+	  (id: $40; Value:'SDA supported (Static Data Authentiction)')
 	  );
 
 implementation
+
+function GetPublicKey(RID: AnsiString; Index: byte): AnsiString;
+var
+  i: Integer;
+begin
+  Result := '';
+  for i := 0 to length(VSDCPublicKeys) - 1 do
+    if (VSDCPublicKeys[i].Index = Index) and
+       (RID = Hex2Bin(VSDCPublicKeys[i].RID))
+    then
+    begin
+      Result := Hex2Bin(VSDCPublicKeys[i].Modulus);
+      break;
+    end;
+end;
 
 function DecodeAIP(aip: AnsiString): string;
 var
@@ -206,6 +223,7 @@ begin
   EMVTags.Add(EMVTag(#$9F#$4D,	'Log Entry'));
   EMVTags.Add(EMVTag(#$9F#$4E,	'Merchant Name and Location'));
   EMVTags.Add(EMVTag(#$9F#$4F,	'Log Format'));
+  EMVTags.Add(EMVTag(#$9F#$69,	'Unpredictable Number Data Object List (UDOL)'));
   EMVTags.Add(EMVTag(#$A5,	'File Control Information (FCI) Proprietary Template'));
   EMVTags.Add(EMVTag(#$BF#$0C,	'File Control Information (FCI) Issuer Discretionary Data'));
 end;

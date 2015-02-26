@@ -158,24 +158,20 @@ begin
      end;
 
      AddLog('* * * Get Processing Options');
-{ 9F66 04 9F02 06 9F37 04 5F2A 02
 
-9F66  квалификаторы транзакции для терминала. В простейшем случае может иметь вид: 86 40 00 00 // в нашем случаи A6 00 00 00
-9F02 - сумма транзакции. Если не знаете - подставьте фиктивное значение, например 1000 руб. будет в виде: 00 00 00 10 00 00  // в нашем случаи 1 грн =00 00 00 00 01 00
-9F37 - случайное число. Подставьте произвольные 4 байта, например: 01 23 45 67
-5F2A - код валюты транзакции. Для рублей будет в виде: 09 99
+     // fill PDOL fields
 
-Это из карты при селекте.
-The data the terminal should send to the card is given in the PDOL. The PDOL is stored in the FCI of the ADF and has the tag '9F38'. The PDOL only contains the expected tagname and length.
-9F 33 03 9F 1A 02 9F 35 01 9F 40 05
-Tag	Name	Length
-'9F33'	Terminal Capabilities	'03'
-'9F1A'	Terminal Country Code	'02'
-'9F35'	Terminal Type	'01'
-'9F40'	Additional Terminal Capabilities	'05'
-}
      // 9F1A	Terminal Country Code
      emv.SetGPO_PDOL(#$9F#$1A, 'ru');
+     // 9F66 квалификаторы транзакции для терминала. В простейшем случае может иметь вид: 86 40 00 00
+     emv.SetGPO_PDOL(#$9F#$66, #$A6#$00#$00#$00);
+     // 9F02 Amount, Authorised (Numeric)
+     emv.SetGPO_PDOL(#$9F#$02, #$01#$00); //amount
+     // 9F37 Unpredictable Number
+     emv.SetGPO_PDOL(#$9F#$37, #$01#$23#$45#$67);
+     // 5F2A Transaction Currency Code
+     emv.SetGPO_PDOL(#$5F#$2A, #$09#$99);  //rub
+
 
      AddLog('PDOL: ');
      AddLog(emv.FCIPTSelectedApp.PDOL.DecodeStr('^'));
@@ -185,6 +181,24 @@ Tag	Name	Length
        AddLog('GPO failed(');
        exit;
      end;
+
+     // EMV 4.3 book3 10.3 page 111. Auth priority CDA --> DDA --> SDA
+     //* Updated Input to Authentication as valid 9F4A is present
+//     if emv.GPORes1.AIP.SDAsupported then
+     begin
+       if not emv.SDA then exit;
+
+     end
+//     else
+//       AddLog('* SDA is not supported according to AIP');
+
+     if emv.GPORes1.AIP.DDAsupported then
+     begin
+       AddLog('* DDA');
+
+     end
+     else
+       AddLog('* DDA is not supported according to AIP');
 
     finally
       emv.Free;

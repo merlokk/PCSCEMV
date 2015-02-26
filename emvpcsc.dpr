@@ -11,7 +11,8 @@ uses
   CardUtils in 'CardUtils.pas',
   EMVsys in 'EMVsys.pas',
   TLVsys in 'TLVsys.pas',
-  EMVconst in 'EMVconst.pas';
+  EMVconst in 'EMVconst.pas',
+  EMVkeys in 'EMVkeys.pas';
 
 {$R *.res}
 
