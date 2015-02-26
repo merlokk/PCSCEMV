@@ -12,7 +12,8 @@ uses
   EMVsys in 'EMVsys.pas',
   TLVsys in 'TLVsys.pas',
   EMVconst in 'EMVconst.pas',
-  EMVkeys in 'EMVkeys.pas';
+  EMVkeys in 'EMVkeys.pas',
+  Chiphers in 'Chiphers.pas';
 
 {$R *.res}
 

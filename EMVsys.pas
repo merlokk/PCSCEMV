@@ -4,7 +4,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, System.AnsiStrings,
   Generics.Collections,
-  TLVsys, EMVconst, defs, PCSCConnector;
+  TLVsys, EMVconst, defs, PCSCConnector, Chiphers;
 
 
 const
@@ -701,7 +701,7 @@ begin
   if PublicKey = '' then exit;
 
   Certificate := AFLListGetParam(#$90);
-  DecrCertificate := Certificate; // !!!!!!!!!!!!!!!!
+  DecrCertificate := TChipher.RSADecode(Certificate, PublicKey);
 
   Result := true;
 end;

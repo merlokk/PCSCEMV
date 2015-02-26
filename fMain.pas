@@ -188,7 +188,7 @@ begin
      begin
        if not emv.SDA then exit;
 
-     end
+     end;
 //     else
 //       AddLog('* SDA is not supported according to AIP');
 
