@@ -13,12 +13,47 @@ type
     procedure Clear;
   end;
 
+  TKeyValueItem = packed record
+    Id: integer;
+    Value: string;
+  end;
+
 function GetEMVTag(Tag: AnsiString): TEMVTag;
+function DecodeAIP(aip: AnsiString): string;
 
 var
   EMVTags: TList<TEMVTag>;
 
+const
+  AIPStr: Array [0..5] of TKeyValueItem = (
+	  (id: 01; Value:'CDA Supported (Combined Dynamic Data Authentication / Application Cryptogram Generation)'),
+	  (id: 04; Value:'Issuer authentication is supported'),
+	  (id: 08; Value:'Terminal risk management is to be performed'),
+	  (id: 10; Value:'Cardholder verification is supported'),
+	  (id: 20; Value:'DDA supported (Dynamic Data Authentication)'),
+	  (id: 40; Value:'SDA supported (Static Data Authentiction)')
+	  );
+
 implementation
+
+function DecodeAIP(aip: AnsiString): string;
+var
+  i: Integer;
+  waip: word;
+begin
+  Result := '';
+  if length(aip) <> 2 then
+  begin
+    Result := 'Wrong AIP length';
+    exit;
+  end;
+
+  waip := byte(aip[1]) + byte(aip[2]) shl 8;
+
+  for i := 0 to length(AIPStr) - 1 do
+    if (AIPStr[i].Id and waip <> 0) then
+      Result := Result + '  +' + AIPStr[i].Value + #$0D#$0A;
+end;
 
 function EMVTag(Tag: AnsiString; Name: string): TEMVTag;
 begin

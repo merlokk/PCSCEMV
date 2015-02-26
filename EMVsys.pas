@@ -21,6 +21,8 @@ type
     tePDOL,               // 9F38 Processing Options Data Object List (PDOL)
     teFCIIDD,             // BF0C File Control Information (FCI) Issuer Discretionary Data
     teAppTemplate,        // 61   Application Template
+    teRespTmplF1,         // 80   Response Message Template Format 1
+    teRespTmplF2,         // 77   Response Message Template Format 2
     teLast);
 
   TTLV = class;
@@ -87,6 +89,43 @@ type
     function Deserialize(elm: TTLV): boolean;
   end;
 
+  // Application Interchange Profile
+  rAIP = packed record
+    Valid: boolean;
+
+    sAIP: AnsiString;
+
+    CDASupported,
+    IssuerAuthenticationSupported,
+    TerminalRiskManagementPref,
+    CardholderVerificationSupported,
+    DDAsupported,
+    SDAsupported : boolean;
+
+    function Deserialize(s: AnsiString): boolean;
+    function DecodeStr: string;
+  end;
+
+  // 80 Response Message Template Format 1
+  tlvRespTmplF1 = packed record
+    Valid: boolean;
+
+    sAIP,
+    sAFL: AnsiString;
+
+    AIP: rAIP;
+
+    function Deserialize(data: AnsiString): boolean;
+    function DecodeStr: string;
+  end;
+
+  // 77 Response Message Template Format 2
+  tlvRespTmplF2 = packed record
+    Valid: boolean;
+
+    function Deserialize(elm: TTLV): boolean;
+  end;
+
   // 83 Command Template
   cmdCommandTemplate = packed record
     PDOL: tlvPDOL;
@@ -148,6 +187,8 @@ type
     AIDList: TList<tlvAppTemplate>;
     TLVSelectedApp: TTLV;
     FCIPTSelectedApp: tlvFCIPT;
+    GPORes1: tlvRespTmplF1;
+    GPORes2: tlvRespTmplF2;
 
     property SelectedAID: AnsiString read GetSelectedAID;
 
@@ -316,6 +357,10 @@ begin
   if Tag = #$61 then Result := teAppTemplate;
   //9F38 Processing Options Data Object List (PDOL)
   if Tag = #$9F#$38 then Result := tePDOL;
+  //80   Response Message Template Format 1
+  if Tag = #$80 then Result := teRespTmplF1;
+  // 77   Response Message Template Format 2
+  if Tag = #$77 then Result := teRespTmplF2;
 
 end;
 
@@ -350,6 +395,8 @@ begin
   TLVSelectedApp.Clear;
   FCIPTSelectedApp.Valid := false;
   FSelectedAID := '';
+  GPORes1.Valid := false;
+  GPORes2.Valid := false;
 end;
 
 constructor TEMV.Create;
@@ -542,7 +589,8 @@ begin
   case data[1] of
   #$80: // 80 Response Message Template Format 1
     begin
-
+      GPORes1.Deserialize(data)
+      AddLog(GPORes1.DecodeStr);
     end;
   #$77: // 77 Response Message Template Format 2
     begin
@@ -725,7 +773,7 @@ begin
               GetEMVTag(Items[i].Tag).Name + ') len:' +
               IntToStr(Items[i].Len);
     if Items[i].Value <> '' then
-      Result := Result + ' val:"' + Items[i].Value + '"';
+      Result := Result + ' val:"' + Bin2HexExt(Items[i].Value, true, true) + '"';
 
     Result := Result + #$0D#$0A
   end;
@@ -818,6 +866,81 @@ begin
     Result := Result + PDOL.Items[i].SerializeValues;
   len := byte(length(Result));
   Result := #$83 + AnsiChar(len) + Result;
+end;
+
+{ tlvRespTmplF2 }
+
+function tlvRespTmplF2.Deserialize(elm: TTLV): boolean;
+begin
+  Result := false;
+  Valid := false;
+
+
+end;
+
+{ tlvRespTmplF1 }
+
+function tlvRespTmplF1.DecodeStr: string;
+begin
+  Result := '';
+  Result := Result + 'AIP:' + #$0D#$0A + AIP.DecodeStr;
+end;
+
+function tlvRespTmplF1.Deserialize(data: AnsiString): boolean;
+begin
+  Valid := false;
+  Result := false;
+  AIP.Valid := false;
+  if (length(data) < 5) or
+     (data[1] <> #$80) or
+     (byte(data[2]) <> length(data) - 2)
+  then exit;
+
+  sAIP := Copy(data, 3, 2);
+  sAFL := Copy(data, 5, length(data));
+
+  if (length(sAIP) <> 2) or
+     ((length(sAFL) mod 3) <> 0)
+  then exit;
+
+  if not AIP.Deserialize(sAIP) then exit;
+
+
+  Valid := true;
+  Result := true;
+end;
+
+{ rAIP }
+
+function rAIP.DecodeStr: string;
+begin
+  if Valid then
+    Result := DecodeAIP(sAIP)
+  else
+    Result := 'AIP not valid';
+end;
+
+function rAIP.Deserialize(s: AnsiString): boolean;
+var
+  waip: word;
+begin
+  Valid := false;
+  Result := false;
+  sAIP := '';
+
+  if length(s) <> 2 then exit;
+  waip := byte(s[1]) + byte(s[2]) shl 8;
+  sAIP := s;
+
+  CDASupported := (waip and $01 <> 0);
+  IssuerAuthenticationSupported := (waip and $04 <> 0);
+  TerminalRiskManagementPref := (waip and $08 <> 0);
+  CardholderVerificationSupported := (waip and $10 <> 0);
+  DDAsupported := (waip and $20 <> 0);
+  SDAsupported := (waip and $40 <> 0);
+
+  Valid := true;
+  Result := true;
 end;
 
 end.
