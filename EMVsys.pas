@@ -199,6 +199,7 @@ type
     FCIPTSelectedApp: tlvFCIPT;
     GPORes1: tlvRespTmplF1;
     GPORes2: tlvRespTmplF2;
+    AFLList: TObjectList<TTLV>;
 
     property SelectedAID: AnsiString read GetSelectedAID;
 
@@ -409,6 +410,7 @@ begin
   FSelectedAID := '';
   GPORes1.Valid := false;
   GPORes2.Valid := false;
+  AFLList.Clear;
 end;
 
 constructor TEMV.Create;
@@ -418,12 +420,14 @@ begin
   AIDList := TList<tlvAppTemplate>.Create;
   FpcscC := pcscC;
   TLVSelectedApp := TTLV.Create;
+  AFLList := TObjectList<TTLV>.Create;
   Clear;
 end;
 
 destructor TEMV.Destroy;
 begin
 
+  AFLList.Free;
   TLVSelectedApp.Destroy;
   AIDList.Destroy;
   inherited;
@@ -585,7 +589,8 @@ var
   data: AnsiString;
   sw: word;
   cmd: cmdCommandTemplate;
-  tlv: TTLV;
+  tlv,
+  atlv: TTLV;
   i: Integer;
   j: Integer;
 begin
@@ -636,10 +641,17 @@ begin
           AddLog('Error reading records from AFL. exit.');
           exit;
         end;
-        if not tlv.Deserealize(data) then AddLog('TLV deserialize error');
-        if LoggingTLV then AddLog(tlv.GetStrTree);
 
-        // todo - add to list!!!
+        atlv := TTLV.Create;
+        if not atlv.Deserealize(data) then
+        begin
+          AddLog('TLV deserialize error');
+          atlv.Free;
+          exit;
+        end;
+        if LoggingTLV then AddLog(atlv.GetStrTree);
+
+        AFLList.Add(atlv);
       end;
     end;
 
