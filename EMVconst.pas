@@ -3,7 +3,7 @@ unit EMVconst;
 interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, System.AnsiStrings,
-  Generics.Collections, EMVkeys, defs;
+  Generics.Collections, EMVkeys, Chiphers, defs;
 
 type
   TEMVTag = packed record
@@ -21,7 +21,7 @@ type
 function GetEMVTag(Tag: AnsiString): TEMVTag;
 function DecodeAIP(aip: AnsiString): string;
 
-function GetPublicKey(RID: AnsiString; Index: byte): AnsiString;
+function GetPublicKey(RID: AnsiString; Index: byte): TRSAPublicKey;
 
 var
   EMVTags: TList<TEMVTag>;
@@ -38,17 +38,17 @@ const
 
 implementation
 
-function GetPublicKey(RID: AnsiString; Index: byte): AnsiString;
+function GetPublicKey(RID: AnsiString; Index: byte): TRSAPublicKey;
 var
   i: Integer;
 begin
-  Result := '';
+  Result.Clear;
   for i := 0 to length(VSDCPublicKeys) - 1 do
     if (VSDCPublicKeys[i].Index = Index) and
        (RID = Hex2Bin(VSDCPublicKeys[i].RID))
     then
     begin
-      Result := Hex2Bin(VSDCPublicKeys[i].Modulus);
+      Result := VSDCPublicKeys[i].GetRSAKey;
       break;
     end;
 end;

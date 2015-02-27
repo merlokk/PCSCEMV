@@ -718,7 +718,7 @@ end;
 
 function TEMV.SDA: boolean;
 var
-  PublicKey: AnsiString;
+  PublicKey: TRSAPublicKey;
   PubKeyIndx,
   Certificate,
   DecrCertificate : AnsiString;
@@ -733,7 +733,7 @@ begin
   if length(PubKeyIndx) <> 1 then exit;
 
   PublicKey := GetPublicKey(Copy(FSelectedAID, 1, 5), byte(PubKeyIndx[1]));
-  if PublicKey = '' then
+  if PublicKey.Size < 128 then // RSA1024
   begin
     AddLog('Dont have a public key: ' + Bin2HexExt(Copy(FSelectedAID, 1, 5), true, true) + ': ' +
        IntToHex(byte(PubKeyIndx[1]), 2));
@@ -752,7 +752,9 @@ begin
   begin
     AddLog('Issuer Public Key Certificate error');
     exit;
-  end;
+  end
+  else
+    AddLog('Issuer Public Key Certificate OK');
 
   // Verification of Signed Static Application Data
   Certificate := AFLListGetParam(#$93);
@@ -764,7 +766,9 @@ begin
   begin
     AddLog('Signed Static Application Data error');
     exit;
-  end;
+  end
+  else
+    AddLog('Signed Static Application Data OK');
 
   Result := true;
 end;
