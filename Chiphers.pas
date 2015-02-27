@@ -4,7 +4,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, StrUtils, defs,
   LbCipher,
-  LbAsym,
+  LbClass,
   LbRSA,
   LbBigInt,
   LbUtils;
@@ -22,6 +22,8 @@ type
   public
     class function RSADecode(data: AnsiString; PublicKey: TRSAPublicKey): AnsiString;
     class function RSAEncode(data, PrivateKey: AnsiString): AnsiString;
+
+    class function SHA1Hash(data: AnsiString): AnsiString;
   end;
 
 implementation
@@ -94,6 +96,21 @@ begin             //  TODO!!!!!  NOT WORKS!!!!
   finally
     FreeAndNil(RSA);
   end;
+end;
+
+class function TChipher.SHA1Hash(data: AnsiString): AnsiString;
+var
+  SHA1: TLbSHA1;
+  Digest: TSHA1Digest;
+begin
+  Result := '';
+
+  SHA1 := TLbSHA1.Create(nil);
+  SHA1.HashStringA(data);
+  SHA1.GetDigest(Digest);
+  SHA1.Destroy;
+  SetLength(Result, 20);
+  Move(Digest, Result[1], 20);
 end;
 
 { TRSAPublicKey }

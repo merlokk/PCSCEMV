@@ -150,16 +150,21 @@ type
 
     IssuerId,
     CertificateExpirationDate,
-    CertificateSerialNumber,
+    CertificateSerialNumber: AnsiString;
     HashAlgorithmIndicator,
     IssuerPublicKeyAlgorithmId,
     IssuerPublicKeyLen,
-    IssuerPublicKeyExponentLen,
-    IssuerPublicKeyorLeftmostDigits,
+    IssuerPublicKeyExponentLen: byte;
+    IssuerPublicKey,
     Hash: AnsiString;
 
+    // parameters!
+    CKeySize: Integer;
+    CRemainder,
+    CExponent,
+    CPAN: AnsiString;
+
     procedure Clear;
-    function Check: boolean;
     function Deserialize(s: AnsiString): boolean;
   end;
 
@@ -747,8 +752,11 @@ begin
   AddLog(Bin2HexExt(DecrCertificate, true, true));
 
   // check certificate
-  if not CertIs.Deserialize(DecrCertificate) and
-     not CertIs.Check then
+  CertIs.CKeySize := PublicKey.Size;
+  CertIs.CRemainder := AFLListGetParam(#$92);
+  CertIs.CExponent := AFLListGetParam(#$9F#$32);
+  CertIs.CPAN := AFLListGetParam(#$5A);
+  if not CertIs.Deserialize(DecrCertificate) then
   begin
     AddLog('Issuer Public Key Certificate error');
     exit;
@@ -1153,12 +1161,70 @@ end;
 
 { certIssuerPublicKey }
 
-function certIssuerPublicKey.Check: boolean;
+procedure certIssuerPublicKey.Clear;
 begin
-  Result :=false;
+  Raw := '';
+
+  IssuerId := '';
+  CertificateExpirationDate := '';
+  CertificateSerialNumber := '';
+  HashAlgorithmIndicator := 0;
+  IssuerPublicKeyAlgorithmId := 0;
+  IssuerPublicKeyLen := 0;
+  IssuerPublicKeyExponentLen := 0;
+  IssuerPublicKey := '';
+  Hash := '';
+end;
+
+function certIssuerPublicKey.Deserialize(s: AnsiString): boolean;
+var
+  len: integer;
+  i: Integer;
+  pk: AnsiString;
+begin
+  Result := false;
+  Clear;
+  if (length(s) < 36) or
+     (s[1] <> #$6A) or
+     (s[2] <> #$02) or
+     (s[length(s)] <> #$BC)
+  then exit;
+
+  len := length(s) - 36;
+  IssuerId := Copy(s, 3, 4);
+  IssuerId := AnsiString(Bin2HexExt(IssuerId, false, true));
+  CertificateExpirationDate := Copy(s, 7, 2);
+  CertificateSerialNumber := Copy(s, 9, 3);
+  HashAlgorithmIndicator := byte(s[12]);
+  IssuerPublicKeyAlgorithmId := byte(s[13]);
+  IssuerPublicKeyLen := byte(s[14]);
+  IssuerPublicKeyExponentLen := byte(s[15]);
+  IssuerPublicKey := Copy(s, 16, len);
+  Hash := Copy(s, 16 + len, 20);
+
+  for i := length(IssuerId) downto 1 do
+    if IssuerId[i] = 'F' then
+      SetLength(IssuerId, length(IssuerId) - 1)
+    else
+      break;
+
+  if IssuerPublicKeyLen < len then
+  begin
+    // check non correct padding!
+    pk := Copy(IssuerPublicKey, IssuerPublicKeyLen + 1, length(IssuerPublicKey));
+    for i := 1 to length(pk) do
+      if pk[i] <> #$BB then exit;
+
+    //copy key
+    IssuerPublicKey := Copy(IssuerPublicKey, 1, IssuerPublicKeyLen);
+  end;
+
+
+  Raw := s;
+  // Check decrypted certificate
 
 	// Step 1: Issuer Public Key Certificate and Certification Authority Public Key Modulus have the same length
-
+	if length(Raw) <> CKeySize then exit;
 
 	// Step 2: The Recovered Data Trailer is equal to 'BC'
 	if Raw[length(Raw)] <> #$BC then exit;
@@ -1171,13 +1237,18 @@ begin
 
 	// Step 5: Concatenation of Certificate Format through Issuer Public Key or Leftmost Digits of the Issuer Public Key,
 	//         followed by the Issuer Public Key Remainder (if present), and the Issuer Public Key Exponent
-
+  pk := Copy(Raw, 1, 14 + len) + CRemainder + CExponent;
 
 	// Step 6: Generate hash from concatenation
+  pk := TChipher.SHA1Hash(pk);
 
 	// Step 7: Compare the hash result with the recovered hash result. They have to be equal
+  if pk <> Hash then exit;
 
 	// Step 8: Verify that the Issuer Identifier matches the lefmost 3-8 PAN digits
+  pk := AnsiString(Bin2HexExt(CPAN, false, true));
+  pk := Copy(pk, 1, length(IssuerId));
+  if pk <> IssuerId then exit;
 
 	// Step 9: Verify that the last day of the month specified in the Certification Expiration Date is equal to or later than today's date.
 
@@ -1187,49 +1258,12 @@ begin
 
 	// Step 12: Concatenate the Leftmost Digits of the Issuer Public Key and the Issuer Public Key Remainder (if present)
 	//          to obtain the Issuer Public Key Modulus
+  if IssuerPublicKeyLen > len then // @@@ NOT TESTED!!!
+    IssuerPublicKey := IssuerPublicKey + CRemainder;
 
-  Result :=true;
-end;
+  // check key
+  if length(IssuerPublicKey) <> IssuerPublicKeyLen then exit;
 
-procedure certIssuerPublicKey.Clear;
-begin
-  Raw := '';
-
-  IssuerId := '';
-  CertificateExpirationDate := '';
-  CertificateSerialNumber := '';
-  HashAlgorithmIndicator := '';
-  IssuerPublicKeyAlgorithmId := '';
-  IssuerPublicKeyLen := '';
-  IssuerPublicKeyExponentLen := '';
-  IssuerPublicKeyorLeftmostDigits := '';
-  Hash := '';
-end;
-
-function certIssuerPublicKey.Deserialize(s: AnsiString): boolean;
-var
-  len: integer;
-begin
-  Result := false;
-  Clear;
-  if (length(s) < 36) or
-     (s[1] <> #$6A) or
-     (s[2] <> #$02) or
-     (s[length(s)] <> #$BC)
-  then exit;
-
-  len := length(s) - 36;  //   @@@@  NOT TESTED!!!
-  IssuerId := Copy(s, 3, 4);
-  CertificateExpirationDate := Copy(s, 7, 2);
-  CertificateSerialNumber := Copy(s, 9, 3);
-  HashAlgorithmIndicator := s[12];
-  IssuerPublicKeyAlgorithmId := s[13];
-  IssuerPublicKeyLen := s[14];
-  IssuerPublicKeyExponentLen := s[15];
-  IssuerPublicKeyorLeftmostDigits := Copy(s, 16, len);
-  Hash := Copy(s, 16 + len, 20);
-
-  Raw := s;
   Result := true;
 end;
 
