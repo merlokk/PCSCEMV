@@ -698,10 +698,21 @@ begin
   if length(PubKeyIndx) <> 1 then exit;
 
   PublicKey := GetPublicKey(Copy(FSelectedAID, 1, 5), byte(PubKeyIndx[1]));
-  if PublicKey = '' then exit;
+  if PublicKey = '' then
+  begin
+    AddLog('Dont have public key: ' + Bin2HexExt(Copy(FSelectedAID, 1, 5), true, true) + ': ' +
+       IntToHex(byte(PubKeyIndx[1]), 2));
+    exit;
+  end;
 
   Certificate := AFLListGetParam(#$90);
   DecrCertificate := TChipher.RSADecode(Certificate, PublicKey);
+  AddLog('dec sert:');
+  AddLog(Bin2HexExt(DecrCertificate, true, true));
+
+  if DecrCertificate[1] <> #$6A then exit;
+  if DecrCertificate[2] <> #$02 then exit;
+
 
   Result := true;
 end;

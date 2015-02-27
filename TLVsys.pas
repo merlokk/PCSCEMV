@@ -40,7 +40,6 @@ begin
   Result := false;
 
   // Tag length - 1byte
-  indx := 1;
   vtag := s[indx];
   if not StrSafeInc(s, indx) then exit;
 
@@ -66,6 +65,7 @@ begin
   if Length(s) < 2 then exit;
 
   // extract tag
+  indx := 1;
   if not ExtractTag(s, Tag, indx) then exit;
 
   // length byte (1-byte)
