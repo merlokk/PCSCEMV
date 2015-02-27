@@ -13,7 +13,17 @@ uses
   TLVsys in 'TLVsys.pas',
   EMVconst in 'EMVconst.pas',
   EMVkeys in 'EMVkeys.pas',
-  Chiphers in 'Chiphers.pas';
+  Chiphers in 'Chiphers.pas',
+  LbCipher in 'lockbox2\LbCipher.pas',
+  LbRSA in 'lockbox2\LbRSA.pas',
+  LbString in 'lockbox2\LbString.pas',
+  LbUtils in 'lockbox2\LbUtils.pas',
+  LbRandom in 'lockbox2\LbRandom.pas',
+  LbBigInt in 'lockbox2\LbBigInt.pas',
+  LbConst in 'lockbox2\LbConst.pas',
+  LbAsym in 'lockbox2\LbAsym.pas',
+  LbClass in 'lockbox2\LbClass.pas',
+  LbProc in 'lockbox2\LbProc.pas';
 
 {$R *.res}
 
