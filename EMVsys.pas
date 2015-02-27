@@ -1237,7 +1237,7 @@ begin
 
 	// Step 5: Concatenation of Certificate Format through Issuer Public Key or Leftmost Digits of the Issuer Public Key,
 	//         followed by the Issuer Public Key Remainder (if present), and the Issuer Public Key Exponent
-  pk := Copy(Raw, 1, 14 + len) + CRemainder + CExponent;
+  pk := Copy(Raw, 2, 14 + len) + CRemainder + CExponent;
 
 	// Step 6: Generate hash from concatenation
   pk := TChipher.SHA1Hash(pk);
