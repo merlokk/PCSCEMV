@@ -144,6 +144,39 @@ type
     function Serialize: AnsiString;
   end;
 
+  // Issuer Public Key Certificate
+  certIssuerPublicKey = packed record
+    Raw: AnsiString;
+
+    IssuerId,
+    CertificateExpirationDate,
+    CertificateSerialNumber,
+    HashAlgorithmIndicator,
+    IssuerPublicKeyAlgorithmId,
+    IssuerPublicKeyLen,
+    IssuerPublicKeyExponentLen,
+    IssuerPublicKeyorLeftmostDigits,
+    Hash: AnsiString;
+
+    procedure Clear;
+    function Check: boolean;
+    function Deserialize(s: AnsiString): boolean;
+  end;
+
+  // Signed Static Application Data
+  certSignedStaticAppData = packed record
+    Raw: AnsiString;
+
+    HashAlgorithmId,
+    DataAuthenticationCode,
+    PadPattern,
+    Hash: AnsiString;
+
+    procedure Clear;
+    function Check: boolean;
+    function Deserialize(s: AnsiString): boolean;
+  end;
+
   TIteratorRef = reference to procedure(elm: TTLV);
 
   TTLV = class
@@ -689,6 +722,8 @@ var
   PubKeyIndx,
   Certificate,
   DecrCertificate : AnsiString;
+  CertIs: certIssuerPublicKey;
+  CertApp: certSignedStaticAppData;
 begin
   Result := false;
   AddLog('* SDA');
@@ -700,19 +735,36 @@ begin
   PublicKey := GetPublicKey(Copy(FSelectedAID, 1, 5), byte(PubKeyIndx[1]));
   if PublicKey = '' then
   begin
-    AddLog('Dont have public key: ' + Bin2HexExt(Copy(FSelectedAID, 1, 5), true, true) + ': ' +
+    AddLog('Dont have a public key: ' + Bin2HexExt(Copy(FSelectedAID, 1, 5), true, true) + ': ' +
        IntToHex(byte(PubKeyIndx[1]), 2));
     exit;
   end;
 
+  // Processing of Issuer Public Key Certificate
   Certificate := AFLListGetParam(#$90);
   DecrCertificate := TChipher.RSADecode(Certificate, PublicKey);
   AddLog('dec sert:');
   AddLog(Bin2HexExt(DecrCertificate, true, true));
 
-  if DecrCertificate[1] <> #$6A then exit;
-  if DecrCertificate[2] <> #$02 then exit;
+  // check certificate
+  if not CertIs.Deserialize(DecrCertificate) and
+     not CertIs.Check then
+  begin
+    AddLog('Issuer Public Key Certificate error');
+    exit;
+  end;
 
+  // Verification of Signed Static Application Data
+  Certificate := AFLListGetParam(#$93);
+  DecrCertificate := Certificate;
+
+  // check certificate
+  if not CertApp.Deserialize(DecrCertificate) and
+     not CertApp.Check then
+  begin
+    AddLog('Signed Static Application Data error');
+    exit;
+  end;
 
   Result := true;
 end;
@@ -1092,6 +1144,147 @@ begin
   EndRecN := byte(s[3]);
   OfflineCount := byte(s[4]);
 
+  Result := true;
+end;
+
+{ certIssuerPublicKey }
+
+function certIssuerPublicKey.Check: boolean;
+begin
+  Result :=false;
+
+	// Step 1: Issuer Public Key Certificate and Certification Authority Public Key Modulus have the same length
+
+
+	// Step 2: The Recovered Data Trailer is equal to 'BC'
+	if Raw[length(Raw)] <> #$BC then exit;
+
+	// Step 3: The Recovered Data Header is equal to '6A'
+	if Raw[1] <> #$6A then exit;
+
+	// Step 4: The Certificate Format is equal to '02'
+	if Raw[2] <> #$02 then exit;
+
+	// Step 5: Concatenation of Certificate Format through Issuer Public Key or Leftmost Digits of the Issuer Public Key,
+	//         followed by the Issuer Public Key Remainder (if present), and the Issuer Public Key Exponent
+
+
+	// Step 6: Generate hash from concatenation
+
+	// Step 7: Compare the hash result with the recovered hash result. They have to be equal
+
+	// Step 8: Verify that the Issuer Identifier matches the lefmost 3-8 PAN digits
+
+	// Step 9: Verify that the last day of the month specified in the Certification Expiration Date is equal to or later than today's date.
+
+	// Step 10: Optional step
+
+	// Step 11: Check the Issuer Public Key Algorithm Indicator
+
+	// Step 12: Concatenate the Leftmost Digits of the Issuer Public Key and the Issuer Public Key Remainder (if present)
+	//          to obtain the Issuer Public Key Modulus
+
+  Result :=true;
+end;
+
+procedure certIssuerPublicKey.Clear;
+begin
+  Raw := '';
+
+  IssuerId := '';
+  CertificateExpirationDate := '';
+  CertificateSerialNumber := '';
+  HashAlgorithmIndicator := '';
+  IssuerPublicKeyAlgorithmId := '';
+  IssuerPublicKeyLen := '';
+  IssuerPublicKeyExponentLen := '';
+  IssuerPublicKeyorLeftmostDigits := '';
+  Hash := '';
+end;
+
+function certIssuerPublicKey.Deserialize(s: AnsiString): boolean;
+var
+  len: integer;
+begin
+  Result := false;
+  Clear;
+  if (length(s) < 36) or
+     (s[1] <> #$6A) or
+     (s[2] <> #$02) or
+     (s[length(s)] <> #$BC)
+  then exit;
+
+  len := length(s) - 36;  //   @@@@  NOT TESTED!!!
+  IssuerId := Copy(s, 3, 4);
+  CertificateExpirationDate := Copy(s, 7, 2);
+  CertificateSerialNumber := Copy(s, 9, 3);
+  HashAlgorithmIndicator := s[12];
+  IssuerPublicKeyAlgorithmId := s[13];
+  IssuerPublicKeyLen := s[14];
+  IssuerPublicKeyExponentLen := s[15];
+  IssuerPublicKeyorLeftmostDigits := Copy(s, 16, len);
+  Hash := Copy(s, 16 + len, 20);
+
+  Raw := s;
+  Result := true;
+end;
+
+{ certSignedStaticAppData }
+
+function certSignedStaticAppData.Check: boolean;
+begin
+  Result := false;
+
+	// Step 1: Signed Static Application Data and Issuer Public Key Modulus have the same length
+
+	// Step 2: The Recovered Data Trailer is equal to 'BC'
+	if Raw[length(Raw)] <> #$BC then exit;
+
+	// Step 3: The Recovered Data Header is equal to '6A'
+	if Raw[1] <> #$6A then exit;
+
+	// Step 4: The Signed Data Format is equal to '03'
+	if Raw[2] <> #$03 then exit;
+
+	// Step 5: Concatenation of Signed Data Format, Hash Algorithm Indicator, Data Authentication Code, Pad Pattern,
+	//         the data listed by the AFL and finally the SDA Tag List
+
+	// Step 6: Generate hash from concatenation
+
+	// Step 7: Compare recovered hash with generated hash. Store the Data Authentication Code from SSAD in tag '9F45'
+
+  Result := true;
+end;
+
+procedure certSignedStaticAppData.Clear;
+begin
+  Raw := '';
+
+  HashAlgorithmId := '';
+  DataAuthenticationCode := '';
+  PadPattern := '';
+  Hash := '';
+end;
+
+function certSignedStaticAppData.Deserialize(s: AnsiString): boolean;
+var
+  len: integer;
+begin
+  Result := false;
+  Clear;
+  if (length(s) < 26) or
+     (s[1] <> #$6A) or
+     (s[2] <> #$03) or
+     (s[length(s)] <> #$BC)
+  then exit;
+
+  len := length(s) - 26;  //   @@@@  NOT TESTED!!!
+  HashAlgorithmId := s[3];
+  DataAuthenticationCode := Copy(s, 4, 2);
+  PadPattern := Copy(s, 6, len);
+  Hash := Copy(s, 6 + len, 20);
+
+  Raw := s;
   Result := true;
 end;
 
