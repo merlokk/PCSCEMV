@@ -184,18 +184,16 @@ begin
 
      // EMV 4.3 book3 10.3 page 111. Auth priority CDA --> DDA --> SDA
      //* Updated Input to Authentication as valid 9F4A is present
-//     if emv.GPORes1.AIP.SDAsupported then
+     if emv.GPORes1.AIP.SDAsupported then
      begin
        if not emv.SDA then exit;
-
-     end;
-//     else
-//       AddLog('* SDA is not supported according to AIP');
+     end
+     else
+       AddLog('* SDA is not supported according to AIP');
 
      if emv.GPORes1.AIP.DDAsupported then
      begin
        AddLog('* DDA');
-
      end
      else
        AddLog('* DDA is not supported according to AIP');

@@ -178,7 +178,31 @@ type
     Hash: AnsiString;
 
     procedure Clear;
-    function Check: boolean;
+    function Deserialize(s: AnsiString): boolean;
+  end;
+
+  // ICC Public Key Certificate
+  certICCPublicKey = packed record
+    Raw: AnsiString;
+
+    ApplicationPAN,
+    CertificateExpirationDate,
+    CertificateSerialNumber: AnsiString;
+    HashAlgorithmId,
+    ICCPublicKeyAlgorithmId,
+    ICCPublicKeyLength,
+    ICCPublicKeyExponentLength: byte;
+    ICCPublicKey,
+    Hash: AnsiString;
+
+    // parameters!
+    CKeySize: Integer;
+    CRemainder,
+    CExponent,
+    CSDATagList,
+    CPAN: AnsiString;
+
+    procedure Clear;
     function Deserialize(s: AnsiString): boolean;
   end;
 
@@ -252,6 +276,7 @@ type
 
     function AFLListGetParam(Tag: AnsiString): AnsiString;
     function SDA: boolean;
+    function DDA: boolean;
 
     constructor Create(pcscC: TPCSCConnector);
     destructor Destroy; override;
@@ -481,6 +506,83 @@ begin
   TLVSelectedApp := TTLV.Create;
   AFLList := TObjectList<TTLV>.Create;
   Clear;
+end;
+
+function TEMV.DDA: boolean;
+var
+  PublicKey,
+  IssuerPublicKey: TRSAPublicKey;
+  PubKeyIndx,
+  Certificate,
+  DecrCertificate : AnsiString;
+  CertIs: certIssuerPublicKey;
+  CertICC: certICCPublicKey;
+begin
+  Result := false;
+  AddLog('* DDA');
+  if FSelectedAID = '' then exit;
+
+  PubKeyIndx := AFLListGetParam(#$8F);
+  if length(PubKeyIndx) <> 1 then exit;
+
+  PublicKey := GetPublicKey(Copy(FSelectedAID, 1, 5), byte(PubKeyIndx[1]));
+  if PublicKey.Size < 128 then // RSA1024
+  begin
+    AddLog('Dont have a public key: ' + Bin2HexExt(Copy(FSelectedAID, 1, 5), true, true) + ': ' +
+       IntToHex(byte(PubKeyIndx[1]), 2));
+    exit;
+  end;
+
+  // Processing of Issuer Public Key Certificate
+  Certificate := AFLListGetParam(#$90);
+  if Certificate = '' then
+  begin
+    AddLog('0x90 Issuer Public Key Certificate not found!');
+    exit;
+  end;
+  DecrCertificate := TChipher.RSADecode(Certificate, PublicKey);
+
+  // check certificate
+  CertIs.CKeySize := PublicKey.Size;
+  CertIs.CRemainder := AFLListGetParam(#$92);
+  CertIs.CExponent := AFLListGetParam(#$9F#$32);
+  CertIs.CPAN := AFLListGetParam(#$5A);
+  if not CertIs.Deserialize(DecrCertificate) then
+  begin
+    AddLog('Issuer Public Key Certificate error');
+    exit;
+  end
+  else
+    AddLog('Issuer Public Key Certificate OK');
+
+  IssuerPublicKey.Clear;
+  IssuerPublicKey.Exponent := CertIs.CExponent;
+  IssuerPublicKey.Modulus := CertIs.IssuerPublicKey;
+
+  // ICC Public Key Certificate
+  Certificate := AFLListGetParam(#$9F#$46);
+  DecrCertificate := TChipher.RSADecode(Certificate, IssuerPublicKey);
+
+  AddLog('ICC Public Key Certificate:');
+  AddLog(Bin2HexExt(DecrCertificate, true, true));
+
+  CertICC.CKeySize := IssuerPublicKey.Size;
+  CertICC.CRemainder := AFLListGetParam(#$9F#$48);
+  CertICC.CExponent := AFLListGetParam(#$9F#$47);
+  CertICC.CSDATagList := AFLListGetParam(#$9F#$4A);
+  CertICC.CPAN := AFLListGetParam(#$5A);
+  if not CertICC.Deserialize(DecrCertificate) then
+  begin
+    AddLog('ICC Public Key Certificate error');
+    exit;
+  end
+  else
+    AddLog('ICC Public Key Certificate OK');
+
+
+
+
+  Result := true;
 end;
 
 destructor TEMV.Destroy;
@@ -810,8 +912,7 @@ begin
 //  DecrCertificate := TChipher.RSADecode(Certificate, KEY);
 
   // check certificate
-  if not CertApp.Deserialize(DecrCertificate) and
-     not CertApp.Check then
+  if not CertApp.Deserialize(DecrCertificate) then
   begin
     AddLog('Signed Static Application Data error');
     exit;
@@ -1330,31 +1431,6 @@ end;
 
 { certSignedStaticAppData }
 
-function certSignedStaticAppData.Check: boolean;
-begin
-  Result := false;
-
-	// Step 1: Signed Static Application Data and Issuer Public Key Modulus have the same length
-
-	// Step 2: The Recovered Data Trailer is equal to 'BC'
-	if Raw[length(Raw)] <> #$BC then exit;
-
-	// Step 3: The Recovered Data Header is equal to '6A'
-	if Raw[1] <> #$6A then exit;
-
-	// Step 4: The Signed Data Format is equal to '03'
-	if Raw[2] <> #$03 then exit;
-
-	// Step 5: Concatenation of Signed Data Format, Hash Algorithm Indicator, Data Authentication Code, Pad Pattern,
-	//         the data listed by the AFL and finally the SDA Tag List
-
-	// Step 6: Generate hash from concatenation
-
-	// Step 7: Compare recovered hash with generated hash. Store the Data Authentication Code from SSAD in tag '9F45'
-
-  Result := true;
-end;
-
 procedure certSignedStaticAppData.Clear;
 begin
   Raw := '';
@@ -1383,7 +1459,169 @@ begin
   PadPattern := Copy(s, 6, len);
   Hash := Copy(s, 6 + len, 20);
 
+
+	// Step 1: Signed Static Application Data and Issuer Public Key Modulus have the same length
+
+	// Step 2: The Recovered Data Trailer is equal to 'BC'
+	if Raw[length(Raw)] <> #$BC then exit;
+
+	// Step 3: The Recovered Data Header is equal to '6A'
+	if Raw[1] <> #$6A then exit;
+
+	// Step 4: The Signed Data Format is equal to '03'
+	if Raw[2] <> #$03 then exit;
+
+	// Step 5: Concatenation of Signed Data Format, Hash Algorithm Indicator, Data Authentication Code, Pad Pattern,
+	//         the data listed by the AFL and finally the SDA Tag List
+
+	// Step 6: Generate hash from concatenation
+
+	// Step 7: Compare recovered hash with generated hash. Store the Data Authentication Code from SSAD in tag '9F45'
+
+
   Raw := s;
+  Result := true;
+end;
+
+{ certICCPublicKey }
+
+procedure certICCPublicKey.Clear;
+begin
+  ApplicationPAN := '';
+  CertificateExpirationDate := '';
+  CertificateSerialNumber := '';
+  HashAlgorithmId := 0;
+  ICCPublicKeyAlgorithmId := 0;
+  ICCPublicKeyLength := 0;
+  ICCPublicKeyExponentLength := 0;
+  ICCPublicKey := '';
+  Hash := '';
+end;
+
+function certICCPublicKey.Deserialize(s: AnsiString): boolean;
+var
+  i,
+  len: integer;
+  pk: AnsiString;
+  dt: TDateTime;
+begin
+  Result := false;
+  Clear;
+  if (length(s) < 36) or
+     (s[1] <> #$6A) or
+     (s[2] <> #$04) or
+     (s[length(s)] <> #$BC)
+  then exit;
+
+  len := length(s) - 42;
+  ApplicationPAN := Bin2HexExt(Copy(s, 3, 10), false, true);
+  CertificateExpirationDate := Copy(s, 13, 2);
+  CertificateSerialNumber := Copy(s, 15, 3);
+  HashAlgorithmId := byte(s[18]);
+  ICCPublicKeyAlgorithmId := byte(s[19]);
+  ICCPublicKeyLength := byte(s[20]);
+  ICCPublicKeyExponentLength := byte(s[21]);
+  ICCPublicKey := Copy(s, 22, len);
+  Hash := Copy(s, 22 + len, 20);
+
+  for i := length(ApplicationPAN) downto 1 do
+    if ApplicationPAN[i] = 'F' then
+      SetLength(ApplicationPAN, length(ApplicationPAN) - 1)
+    else
+      break;
+
+  if ICCPublicKeyLength < len then
+  begin
+    // check non correct padding!
+    pk := Copy(ICCPublicKey, ICCPublicKeyLength + 1, length(ICCPublicKey));
+    for i := 1 to length(pk) do
+      if pk[i] <> #$BB then exit;
+
+    //copy key
+    ICCPublicKey := Copy(ICCPublicKey, 1, ICCPublicKeyLength);
+  end;
+
+
+  Raw := s;
+  // Check decrypted certificate
+
+	// Step 1: Issuer Public Key Certificate and Certification Authority Public Key Modulus have the same length
+	if length(Raw) <> CKeySize then exit;
+
+	// Step 2: The Recovered Data Trailer is equal to 'BC'
+	if Raw[length(Raw)] <> #$BC then exit;
+
+	// Step 3: The Recovered Data Header is equal to '6A'
+	if Raw[1] <> #$6A then exit;
+
+	// Step 4: The Certificate Format is equal to '02'
+	if Raw[2] <> #$04 then exit;
+
+  // hash is SHA-1
+  if HashAlgorithmId <> 1 then exit;
+
+  // Step 5: Concatenation
+  pk := Copy(Raw, 2, 22 + len) + CRemainder + CExponent;
+
+(*	var list = decryptedICC.bytes(1, (decryptedICC.length - 22));
+	var remainder = this.emv.cardDE[0x9F48];
+	var exponent = this.emv.cardDE[0x9F47];
+	var remex = remainder.concat(exponent);
+	list = list.concat(remex);
+	var daInput = this.emv.getDAInput();
+	list = list.concat(daInput);
+
+	var sdaTagList = this.emv.cardDE[0x9F4A];
+	if(typeof(sdaTagList != "undefined")) {
+		var value = new ByteBuffer();
+		for(var i = 0; i < sdaTagList.length; i++) {
+			var tag = sdaTagList.byteAt(i);
+			value = value.append(this.emv.cardDE[tag]);
+		}
+		value = value.toByteString();
+		list = list.concat(value);
+	}        *)
+
+	// Step 6: Generate hash from concatenation
+  pk := TChipher.SHA1Hash(pk);
+
+	// Step 7: Compare recovered hash with generated hash
+//  if pk <> Hash then exit;
+
+	// Step 8: Verify that the Issuer Identifier matches the lefmost 3-8 PAN digits
+  pk := AnsiString(Bin2HexExt(CPAN, false, true));
+  pk := Copy(pk, 1, length(ApplicationPAN));
+  if pk <> ApplicationPAN then exit;
+
+
+	// Step 9: Verify that the last day of the month specified
+	//         in the Certification Expiration Date is equal to or later than today's date.
+  dt := EMVDateDecode(CertificateExpirationDate);
+  dt := IncMonth(dt); // the first day of the next month
+  if dt < now - 365 * 10 then
+  begin
+    AddLog('Certificate end date error');
+    exit;
+  end;
+
+ { if dt < now then
+  begin
+    AddLog('Certificate expired');
+    exit;
+  end;        }
+
+	// Step 10: Check the ICC Public Key Algorithm Indicator
+  if ICCPublicKeyAlgorithmId <> 1 then exit;
+
+
+	// Step 11: Concatenate the Leftmost Digits of the ICC Public Key
+	//          and the ICC Public Key Remainder (if present) to obtain the ICC Public Key Modulus
+  if ICCPublicKeyLength > len then // @@@ NOT TESTED!!!  in case that there is a remainder present on the card
+    ICCPublicKey := ICCPublicKey + CRemainder;
+
+  // check key
+  if length(ICCPublicKey) <> ICCPublicKeyLength then exit;
+
   Result := true;
 end;
 
