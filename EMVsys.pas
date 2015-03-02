@@ -652,6 +652,7 @@ var
   atlv: TTLV;
   i: Integer;
   j: Integer;
+  dt: TDateTime;
 begin
   Result := false;
 
@@ -714,6 +715,36 @@ begin
       end;
     end;
 
+    // check mandatory fields EMV 4.3 book2 7.2
+    if AFLListGetParam(#$5F#$24) = '' then
+    begin
+      AddLog('Application Expiration Date not found!');
+      exit;
+    end;
+    if AFLListGetParam(#$5A) = '' then
+    begin
+      AddLog('Application Primary Account Number (PAN) not found!');
+      exit;
+    end;
+    if AFLListGetParam(#$8C) = '' then
+    begin
+      AddLog('Card Risk Management Data Object List 1 not found!');
+      exit;
+    end;
+    if AFLListGetParam(#$8D) = '' then
+    begin
+      AddLog('Card Risk Management Data Object List 2 not found!');
+      exit;
+    end;
+
+    // check application expire date
+    dt := EMVDateDecode(AFLListGetParam(#$5F#$24));
+    if dt < Now then
+    begin
+      AddLog('Application expired!');
+      exit;
+    end;
+
   finally
     tlv.Free;
   end;
@@ -747,9 +778,12 @@ begin
 
   // Processing of Issuer Public Key Certificate
   Certificate := AFLListGetParam(#$90);
+  if Certificate = '' then
+  begin
+    AddLog('0x90 Issuer Public Key Certificate not found!');
+    exit;
+  end;
   DecrCertificate := TChipher.RSADecode(Certificate, PublicKey);
-  AddLog('dec sert:');
-  AddLog(Bin2HexExt(DecrCertificate, true, true));
 
   // check certificate
   CertIs.CKeySize := PublicKey.Size;
@@ -766,7 +800,14 @@ begin
 
   // Verification of Signed Static Application Data
   Certificate := AFLListGetParam(#$93);
+  if Certificate = '' then
+  begin
+    AddLog('0x93 Signed Static Application Data not found!');
+    exit;
+  end;
+// @@@@ NOT TESTED!!!!!!
   DecrCertificate := Certificate;
+//  DecrCertificate := TChipher.RSADecode(Certificate, KEY);
 
   // check certificate
   if not CertApp.Deserialize(DecrCertificate) and
@@ -1181,6 +1222,7 @@ var
   len: integer;
   i: Integer;
   pk: AnsiString;
+  dt: TDateTime;
 begin
   Result := false;
   Clear;
@@ -1235,6 +1277,9 @@ begin
 	// Step 4: The Certificate Format is equal to '02'
 	if Raw[2] <> #$02 then exit;
 
+  // hash is SHA-1
+  if HashAlgorithmIndicator <> 1 then exit;
+
 	// Step 5: Concatenation of Certificate Format through Issuer Public Key or Leftmost Digits of the Issuer Public Key,
 	//         followed by the Issuer Public Key Remainder (if present), and the Issuer Public Key Exponent
   pk := Copy(Raw, 2, 14 + len) + CRemainder + CExponent;
@@ -1251,14 +1296,30 @@ begin
   if pk <> IssuerId then exit;
 
 	// Step 9: Verify that the last day of the month specified in the Certification Expiration Date is equal to or later than today's date.
+  dt := EMVDateDecode(CertificateExpirationDate);
+  dt := IncMonth(dt); // the first day of the next month
+  if dt < now - 365 * 10 then
+  begin
+    AddLog('Certificate end date error');
+    exit;
+  end;
+
+ { if dt < now then
+  begin
+    AddLog('Certificate expired');
+    exit;
+  end;        }
 
 	// Step 10: Optional step
+  // Verify that the concatenation of RID, Certification Authority Public Key Index, and Certificate Serial Number is valid. If not, SDA has failed
 
 	// Step 11: Check the Issuer Public Key Algorithm Indicator
+  if IssuerPublicKeyAlgorithmId <> 1 then exit;
+
 
 	// Step 12: Concatenate the Leftmost Digits of the Issuer Public Key and the Issuer Public Key Remainder (if present)
 	//          to obtain the Issuer Public Key Modulus
-  if IssuerPublicKeyLen > len then // @@@ NOT TESTED!!!
+  if IssuerPublicKeyLen > len then // @@@ NOT TESTED!!!  in case that there is a remainder present on the card
     IssuerPublicKey := IssuerPublicKey + CRemainder;
 
   // check key

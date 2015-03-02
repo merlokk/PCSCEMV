@@ -2,7 +2,8 @@ unit defs;
 
 interface
 uses
-  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, System.AnsiStrings;
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, System.AnsiStrings,
+  DateUtils;
 
 type
   TLogger = procedure(s: string);
@@ -11,6 +12,8 @@ var
   SLogger: TLogger = Nil;
 
 procedure AddLog(s: string);
+
+function EMVDateDecode(s: AnsiString): TDateTime;
 
 function Hex2Bin(input: string): AnsiString;
 function Bin2HexExt(const input:AnsiString; const spaces, upcase: boolean): string;
@@ -25,6 +28,36 @@ implementation
 procedure AddLog(s: string);
 begin
   if Assigned(SLogger) then SLogger(s);
+end;
+
+function EMVDateDecode(s: AnsiString): TDateTime;
+var
+  day,
+  month,
+  year: integer;
+begin
+  Result := 0;
+  if (length(s) <> 2) and (length(s) <> 3) then exit;
+
+  try
+    if length(s) = 2 then
+    begin
+      day := 1;
+      month := StrToIntDef(Bin2HexExt(s[1], true, true), 0);
+      year := StrToIntDef(Bin2HexExt(s[2], true, true), 0);
+    end
+    else
+    begin
+      day := StrToIntDef(Bin2HexExt(s[3], true, true), 0);
+      month := StrToIntDef(Bin2HexExt(s[2], true, true), 0);
+      year := StrToIntDef(Bin2HexExt(s[1], true, true), 0);
+    end;
+    if year < 2000 then year := year + 2000;
+
+    Result := EncodeDate(year, month, day);
+  except
+    Result := 0;
+  end;
 end;
 
 function Hex2Bin(input: string): AnsiString;
@@ -56,6 +89,8 @@ begin
     hexresult := hexresult + IntToHex(byte(input[loop]),2);
     if spaces then hexresult := hexresult + ' ';
   end;
+
+  hexresult := trim(hexresult);
 
   if upcase then
     result := AnsiUpperCase(hexresult)
