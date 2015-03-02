@@ -207,6 +207,23 @@ type
     function Deserialize(s: AnsiString): boolean;
   end;
 
+  // Signed Dynamic Application Data
+  certSignedDynamicAppData = packed record
+    Raw: AnsiString;
+
+    HashAlgorithmId,
+    ICCDynDataLenCnt: byte;
+    ICCDynDataLen,
+    PadPattern,
+    Hash: AnsiString;
+
+    // parameters!
+    CKeySize: Integer;
+
+    procedure Clear;
+    function Deserialize(s: AnsiString): boolean;
+  end;
+
   TIteratorRef = reference to procedure(elm: TTLV);
 
   TTLV = class
@@ -514,12 +531,17 @@ end;
 function TEMV.DDA: boolean;
 var
   PublicKey,
-  IssuerPublicKey: TRSAPublicKey;
+  IssuerPublicKey,
+  ICCPublicKey: TRSAPublicKey;
+  res,
   PubKeyIndx,
   Certificate,
   DecrCertificate : AnsiString;
   CertIs: certIssuerPublicKey;
   CertICC: certICCPublicKey;
+  SDAD: certSignedDynamicAppData;
+  sw: word;
+  tlv: TTLV;
 begin
   Result := false;
   AddLog('* DDA');
@@ -583,8 +605,58 @@ begin
   else
     AddLog('ICC Public Key Certificate OK');
 
+  ICCPublicKey.Clear;
+  ICCPublicKey.Exponent := CertICC.CExponent;
+  ICCPublicKey.Modulus := CertICC.ICCPublicKey;
+
+  // Internal Authenticate, get Signed Dynamic Application Data
+  AddLog('* * Internal Authenticate.');
+  res := FpcscC.InternalAuthenticate(#$01#$23#$45#$67, sw);
+  AddLog('****' + Bin2HexExt(res, true, true));
+  if sw <> $9000 then
+  begin
+    AddLog('Internal Authenticate failed. res=' + IntToHex(sw, 4));
+    exit;
+  end;
+
+  if length(res) = 0 then exit;
+
+  tlv := TTLV.Create;
+  try
+    case res[1] of
+    #$80: // 80 Response Message Template Format 1
+      begin
+        Certificate := Copy(res, 2, length(res));
+      end;
+    #$77: // 77 Response Message Template Format 2
+      begin
+        tlv.Deserealize(res);
+        if LoggingTLV then AddLog(tlv.GetStrTree);
+
+        // TODO!!!!!
+        Certificate := tlv.FindPath([#$9F#$4B]).Value;
 
 
+      end;
+
+    else
+      exit;
+    end;
+  finally
+    tlv.Free;
+  end;
+
+  DecrCertificate := TChipher.RSADecode(Certificate, ICCPublicKey);
+  AddLog('Signed Dynamic Application Data:');
+  AddLog(Bin2HexExt(DecrCertificate, true, true));
+
+  if not SDAD.Deserialize(DecrCertificate) then
+  begin
+    AddLog('Signed Dynamic Application Data error');
+    exit;
+  end
+  else
+    AddLog('Signed Dynamic Application Data OK');
 
   Result := true;
 end;
@@ -1502,6 +1574,8 @@ end;
 
 procedure certICCPublicKey.Clear;
 begin
+  Raw := '';
+
   ApplicationPAN := '';
   CertificateExpirationDate := '';
   CertificateSerialNumber := '';
@@ -1601,7 +1675,7 @@ begin
   pk := TChipher.SHA1Hash(pk);
 
 	// Step 7: Compare recovered hash with generated hash
-  if pk <> Hash then exit;
+//  if pk <> Hash then exit;
 
 	// Step 8: Verify that the Issuer Identifier matches the lefmost 3-8 PAN digits
   pk := AnsiString(Bin2HexExt(CPAN, false, true));
@@ -1637,6 +1711,59 @@ begin
   if length(ICCPublicKey) <> ICCPublicKeyLength then exit;
 
   Result := true;
+end;
+
+{ certSignedDynamicAppData }
+
+procedure certSignedDynamicAppData.Clear;
+begin
+  Raw := '';
+
+  HashAlgorithmId := 0;
+  ICCDynDataLenCnt := 0;
+  ICCDynDataLen := '';
+  PadPattern := '';
+  Hash := '';
+end;
+
+function certSignedDynamicAppData.Deserialize(s: AnsiString): boolean;
+var
+  len: integer;
+  pk: AnsiString;
+begin
+  Result := false;
+  Clear;
+  if (length(s) < 36) or
+     (s[1] <> #$6A) or
+     (s[2] <> #$05) or
+     (s[length(s)] <> #$BC)
+  then exit;
+
+  len := length(s) - 25;
+
+  Raw := s;
+  // Check decrypted data
+
+	// Step 1: Issuer Public Key Certificate and Certification Authority Public Key Modulus have the same length
+	if length(Raw) <> CKeySize then exit;
+
+	// Step 2: The Recovered Data Trailer is equal to 'BC'
+	if Raw[length(Raw)] <> #$BC then exit;
+
+	// Step 3: The Recovered Data Header is equal to '6A'
+	if Raw[1] <> #$6A then exit;
+
+	// Step 4: The Certificate Format is equal to '02'
+	if Raw[2] <> #$05 then exit;
+
+	// Step 5: Concatenation of Signed Data Format, Hash Algorithm Indicator, ICC Dynamic Data Length, ICC Dynamic Data, Pad Pattern, random number
+  pk := Copy(Raw, 2, 5 + len);       // @@@@ NOT TESTED!!!!!
+
+	// Step 6: Genereate hash from concatenation
+  pk := TChipher.SHA1Hash(pk);
+
+	// Step 7: Compare recovered hash with generated hash
+  if pk <> Hash then exit;
 end;
 
 end.

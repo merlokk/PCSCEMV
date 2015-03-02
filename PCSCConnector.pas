@@ -156,6 +156,7 @@ type
 
     function    CardSelect(const aid: AnsiString; var sw: Word): AnsiString;
     function    ReadSFIRecord(sfi, rnum: byte; var sw: Word): AnsiString;
+    function    InternalAuthenticate(data: AnsiString; var sw: Word): AnsiString;
 
   published
     property UseReaderNum: integer    read FUseReaderNum    write SetReaderNum  default -1;
@@ -359,6 +360,20 @@ begin
         end;
       end else if Assigned(FOnError) then FOnError(Self, esInit, RetVar);
     end else if Assigned(FOnError) then FOnError(Self, esInit, RetVar);
+end;
+
+function TPCSCConnector.InternalAuthenticate(data: AnsiString; var sw: Word): AnsiString;
+var
+  len: byte;
+begin
+  Result := '';
+  len := length(data);
+  if len > $FF then exit;
+
+  Result := data;
+  if not GetResponseFromCard(#$00#$88#$00#$00 + AnsiChar(len), Result, sw)
+  then
+    Result := '';
 end;
 
 function TPCSCConnector.Open: boolean;
