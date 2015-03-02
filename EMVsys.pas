@@ -200,7 +200,8 @@ type
     CRemainder,
     CExponent,
     CSDATagList,
-    CPAN: AnsiString;
+    CPAN,
+    CDAinput: AnsiString;
 
     procedure Clear;
     function Deserialize(s: AnsiString): boolean;
@@ -262,6 +263,7 @@ type
     GPORes1: tlvRespTmplF1;
     GPORes2: tlvRespTmplF2;
     AFLList: TObjectList<TTLV>;
+    DAInput: AnsiString;
 
     property SelectedAID: AnsiString read GetSelectedAID;
 
@@ -495,6 +497,7 @@ begin
   GPORes1.Valid := false;
   GPORes2.Valid := false;
   AFLList.Clear;
+  DAInput := '';
 end;
 
 constructor TEMV.Create;
@@ -569,8 +572,9 @@ begin
   CertICC.CKeySize := IssuerPublicKey.Size;
   CertICC.CRemainder := AFLListGetParam(#$9F#$48);
   CertICC.CExponent := AFLListGetParam(#$9F#$47);
-  CertICC.CSDATagList := AFLListGetParam(#$9F#$4A);
+  CertICC.CSDATagList := AFLListGetParam(#$9F#$4A); // !!!!!!!!!!!!!!!!! test it!!!!
   CertICC.CPAN := AFLListGetParam(#$5A);
+  CertICC.CDAinput := DAInput;
   if not CertICC.Deserialize(DecrCertificate) then
   begin
     AddLog('ICC Public Key Certificate error');
@@ -790,6 +794,7 @@ begin
       exit;
     end;
 
+    DAInput := '';
     AddLog('* * * Read records from AFL');
     for i := 0 to length(GPORes1.AFL) - 1 do
     begin
@@ -814,6 +819,16 @@ begin
         if LoggingTLV then AddLog(atlv.GetStrTree);
 
         AFLList.Add(atlv);
+
+        // make DA input data
+        if (GPORes1.AFL[i].OfflineCount > 0) and
+           (GPORes1.AFL[i].OfflineCount + GPORes1.AFL[i].StartRecN > j) then
+        begin
+          if GPORes1.AFL[i].SFI <= 10 then
+            DAInput := DAInput + atlv.Value  // only value
+          else
+            DAInput := DAInput + data;       // full data
+        end;
       end;
     end;
 
@@ -1561,7 +1576,7 @@ begin
   if HashAlgorithmId <> 1 then exit;
 
   // Step 5: Concatenation
-  pk := Copy(Raw, 2, 22 + len) + CRemainder + CExponent;
+  pk := Copy(Raw, 2, 22 + len) + CRemainder + CExponent + CDAinput;
 
 (*	var list = decryptedICC.bytes(1, (decryptedICC.length - 22));
 	var remainder = this.emv.cardDE[0x9F48];
@@ -1586,13 +1601,12 @@ begin
   pk := TChipher.SHA1Hash(pk);
 
 	// Step 7: Compare recovered hash with generated hash
-//  if pk <> Hash then exit;
+  if pk <> Hash then exit;
 
 	// Step 8: Verify that the Issuer Identifier matches the lefmost 3-8 PAN digits
   pk := AnsiString(Bin2HexExt(CPAN, false, true));
   pk := Copy(pk, 1, length(ApplicationPAN));
   if pk <> ApplicationPAN then exit;
-
 
 	// Step 9: Verify that the last day of the month specified
 	//         in the Certification Expiration Date is equal to or later than today's date.
