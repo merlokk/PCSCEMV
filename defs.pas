@@ -41,13 +41,13 @@ begin
 
   try
     if length(s) = 2 then
-    begin
+    begin // MMYY
       day := 1;
       month := StrToIntDef(Bin2HexExt(s[1], true, true), 0);
       year := StrToIntDef(Bin2HexExt(s[2], true, true), 0);
     end
     else
-    begin
+    begin // YYMMDD
       day := StrToIntDef(Bin2HexExt(s[3], true, true), 0);
       month := StrToIntDef(Bin2HexExt(s[2], true, true), 0);
       year := StrToIntDef(Bin2HexExt(s[1], true, true), 0);
