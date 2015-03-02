@@ -536,7 +536,8 @@ var
   res,
   PubKeyIndx,
   Certificate,
-  DecrCertificate : AnsiString;
+  DecrCertificate,
+  ddol : AnsiString;
   CertIs: certIssuerPublicKey;
   CertICC: certICCPublicKey;
   SDAD: certSignedDynamicAppData;
@@ -611,7 +612,12 @@ begin
 
   // Internal Authenticate, get Signed Dynamic Application Data
   AddLog('* * Internal Authenticate.');
-  res := FpcscC.InternalAuthenticate(#$01#$23#$45#$67, sw);
+
+  res := AFLListGetParam(#$9F#$49); // DDOL!!!!  ADD PROCESSING!!!
+  ddol := #$01#$23#$45#$67;
+  if res = '' then ddol := #$01#$23#$45#$67;
+
+  res := FpcscC.InternalAuthenticate(ddol, sw);
   AddLog('****' + Bin2HexExt(res, true, true));
   if sw <> $9000 then
   begin
