@@ -18,6 +18,7 @@ type
     cbATR: TCheckBox;
     cbTLV: TCheckBox;
     cbCheckExpired: TCheckBox;
+    cbVerifyPIN: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure btRefreshClick(Sender: TObject);
@@ -197,6 +198,8 @@ begin
        AddLog('* DDA is not supported according to AIP');
 
 
+    emv.PlaintextPIN := '1234';
+    emv.VerifyPIN := cbVerifyPIN.Checked;
     if not emv.CVM then exit;
 
 

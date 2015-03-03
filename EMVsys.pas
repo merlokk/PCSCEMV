@@ -315,7 +315,8 @@ type
     function GetSelectedAID: AnsiString;
   public
     LoggingTLV,
-    CheckExpired: boolean;
+    CheckExpired,
+    VerifyPIN: boolean;
 
     AIDList: TList<tlvAppTemplate>;
     TLVSelectedApp: TTLV;
@@ -325,7 +326,8 @@ type
     AFLList: TObjectList<TTLV>;
     DAInput: AnsiString;
 
-    RandomNumber: AnsiString;
+    RandomNumber,
+    PlaintextPIN: AnsiString;
 
     property SelectedAID: AnsiString read GetSelectedAID;
 
@@ -344,6 +346,8 @@ type
     function DDA: boolean;
 
     function CVM: boolean;
+    function GetPINTryCount: byte;
+    function PlaintextPINVerify(pin: AnsiString): boolean;
 
     constructor Create(pcscC: TPCSCConnector);
     destructor Destroy; override;
@@ -560,6 +564,8 @@ procedure TEMV.Clear;
 begin
   LoggingTLV := false;
   CheckExpired := true;
+  VerifyPIN := false;
+
   AIDList.Clear;
   TLVSelectedApp.Clear;
   FCIPTSelectedApp.Valid := false;
@@ -570,6 +576,7 @@ begin
   DAInput := '';
 
   RandomNumber := #$01#$23#$45#$67;
+  PlaintextPIN := '';
 end;
 
 constructor TEMV.Create;
@@ -603,9 +610,18 @@ begin
       cvrPlaintextPINverificationbyICC:
         begin
           AddLog('* * * Verify Clear Text Pin');
-
-          // TODO
-          StepResult := true;
+          if VerifyPIN then
+            StepResult := PlaintextPINVerify(PlaintextPIN)
+          else
+            StepResult := false;
+        end;
+      cvrPlainPINverifybyICCandSignature:
+        begin
+          AddLog('* * * Verify Clear Text Pin and capture paper signature');
+          if VerifyPIN then
+            StepResult := PlaintextPINVerify(PlaintextPIN)
+          else
+            StepResult := false;
         end;
       cvrSignature:
         begin
@@ -950,6 +966,25 @@ begin
   end;
 end;
 
+function TEMV.GetPINTryCount: byte;
+var
+  res: AnsiString;
+  sw: word;
+  tlv: TTLV;
+begin
+  Result := 0;
+
+  res := FpcscC.GetData(#$9F#$17, sw);
+  if (sw <> $9000) or (length(res) < 3) then exit;
+  tlv := TTLV.Create;
+  tlv.Deserealize(res);
+
+  if length(tlv.Value) = 1 then
+    Result := byte(tlv.Value[1]);
+
+  tlv.Free;
+end;
+
 function TEMV.GetSelectedAID: AnsiString;
 begin
   Result := '';
@@ -1075,6 +1110,45 @@ begin
 
   finally
     tlv.Free;
+  end;
+
+  Result := true;
+end;
+
+function TEMV.PlaintextPINVerify(pin: AnsiString): boolean;
+var
+  pinblock: AnsiString;
+  refdata,
+  len: byte;
+  sw: word;
+  res: AnsiString;
+begin
+  Result := false;
+  len := length(pin);
+  if (len < $04) or (len > $0C) then exit;   // EMV 4.3 book 3, 6.5.12
+
+  if GetPINTryCount < 1 then exit;
+
+  // EMV 4.3 book 3, 6.5.12, page 67
+  refdata := $80; // 10000000 - Plaintext PIN
+  pinblock := '2' + IntToHex(len, 1);
+  pinblock := pinblock + pin;
+  while length(pinblock) < 16 do
+    pinblock := pinblock + 'F';
+
+  pinblock := Hex2Bin(pinblock);
+
+  res:= FpcscC.VerifyPIN(pinblock, refdata, sw);
+  if Hi(sw) = $63 then
+  begin
+    AddLog('Pin Verification error! Try count=' + IntToStr(sw and $0F));
+    exit;
+  end;
+
+  if sw <> $9000 then
+  begin
+    AddLog('Pin Verification error!');
+    exit;
   end;
 
   Result := true;

@@ -156,7 +156,9 @@ type
 
     function    CardSelect(const aid: AnsiString; var sw: Word): AnsiString;
     function    ReadSFIRecord(sfi, rnum: byte; var sw: Word): AnsiString;
+    function    GetData(id: AnsiString; var sw: Word): AnsiString;
     function    InternalAuthenticate(data: AnsiString; var sw: Word): AnsiString;
+    function    VerifyPIN(data: AnsiString; refdata: byte;var sw: Word): AnsiString;
 
   published
     property UseReaderNum: integer    read FUseReaderNum    write SetReaderNum  default -1;
@@ -364,7 +366,7 @@ end;
 
 function TPCSCConnector.InternalAuthenticate(data: AnsiString; var sw: Word): AnsiString;
 var
-  len: byte;
+  len: integer;
 begin
   Result := '';
   len := length(data);
@@ -488,7 +490,7 @@ function TPCSCConnector.ReadSFIRecord(sfi, rnum: byte; var sw: Word): AnsiString
 begin
   Result := '';
   if (rnum > $10) then exit;
-  Result := '';
+
   if not GetResponseFromCard(
         #$00#$B2 + AnsiChar(rnum) + AnsiChar((sfi shl 3) or $04) + #$00, Result, sw)
   then
@@ -561,6 +563,21 @@ begin
       FUseReaderNum   := -1;
       end;
     end;
+end;
+
+function TPCSCConnector.VerifyPIN(data: AnsiString; refdata: byte;
+  var sw: Word): AnsiString;
+var
+  len: integer;
+begin
+  Result := data;
+  len := length(data);
+  if len > $FF then exit;
+
+  if not GetResponseFromCard(
+        #$00#$20#$00 + AnsiChar(refdata) + AnsiChar(len), Result, sw)
+  then
+    Result := '';
 end;
 
 function TPCSCConnector.IsReaderOpen: boolean;
@@ -654,6 +671,33 @@ procedure TPCSCConnector.GetCardAttributes;
 begin
 end;
 
+function TPCSCConnector.GetData(id: AnsiString; var sw: Word): AnsiString;
+var
+  res: AnsiString;
+begin
+  Result := '';
+  if length(id) <> 2 then exit;
+
+  res := '';
+  if not GetResponseFromCard(
+        #$80#$CA + id[1] + id[2] + #$00, res, sw)
+  then
+    res := '';
+
+  if Hi(sw) = $6C then
+  begin
+    res := '';
+    if not GetResponseFromCard(
+          #$80#$CA + id[1] + id[2] + AnsiChar(Lo(sw)), res, sw)
+    then
+      res := '';
+  end;
+
+  if (length(res) < 3) or (res[1] <> id[1]) or (res[2] <> id[2]) then exit;
+
+  Result := res;
+end;
+
 procedure TPCSCConnector.ClearReaderAttributes;
 begin
   FAttrCardATR      := '';
@@ -682,7 +726,7 @@ var
   Ppci   : Pointer;
 begin
 SBuf := APdu;
-RBuf := StringOfChar(#0,MAXAPDULENGTH);
+RBuf := AnsiString(StringOfChar(#0,MAXAPDULENGTH));
 if Length(SBuf) <= MAXAPDULENGTH then
   begin
   case FAttrProtocol of

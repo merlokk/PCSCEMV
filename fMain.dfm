@@ -83,6 +83,14 @@ object Form1: TForm1
       Caption = 'Check expired objects'
       TabOrder = 5
     end
+    object cbVerifyPIN: TCheckBox
+      Left = 255
+      Top = 79
+      Width = 97
+      Height = 17
+      Caption = 'Verify PIN!!!!'
+      TabOrder = 6
+    end
   end
   object Memo1: TMemo
     Left = 0
