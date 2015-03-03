@@ -300,6 +300,8 @@ type
     function SDA: boolean;
     function DDA: boolean;
 
+    function CVM: boolean;
+
     constructor Create(pcscC: TPCSCConnector);
     destructor Destroy; override;
 
@@ -531,6 +533,22 @@ begin
   TLVSelectedApp := TTLV.Create;
   AFLList := TObjectList<TTLV>.Create;
   Clear;
+end;
+
+function TEMV.CVM: boolean;
+var
+  CVMlist: AnsiString;
+begin
+  Result := false;
+  AddLog('* * * Processing CVM (Cardholder Verification Method)');
+
+  CVMlist := AFLListGetParam(#$8E);
+
+  AddLog('* * * Verify Clear Text Pin');
+
+
+  AddLog('* * * End of Processing CVM');
+  Result := true;
 end;
 
 function TEMV.DDA: boolean;

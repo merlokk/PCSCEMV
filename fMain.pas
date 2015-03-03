@@ -193,10 +193,14 @@ begin
 
      if emv.GPORes1.AIP.DDAsupported then
      begin
-       AddLog('* DDA');
+       if not emv.DDA then exit;
      end
      else
        AddLog('* DDA is not supported according to AIP');
+
+
+    if not emv.CVM then exit;
+
 
     finally
       emv.Free;
