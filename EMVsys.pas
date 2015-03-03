@@ -959,10 +959,12 @@ begin
            (GPORes1.AFL[i].OfflineCount + GPORes1.AFL[i].StartRecN > j) then
         begin
           // EMV 4.3 book3 10.3, page 96
-          if GPORes1.AFL[i].SFI <= 10 then
+     {     if GPORes1.AFL[i].SFI <= 10 then
             DAInput := DAInput + atlv.Value  // only value
           else
-            DAInput := DAInput + data;       // full data
+            DAInput := DAInput + data;       // full data}
+          // the above NOT WORKS!!!!!
+          DAInput := DAInput + atlv.Value;
         end;
       end;
     end;
