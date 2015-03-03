@@ -74,6 +74,15 @@ type
     function DecodeStr(prefix: string = ''): string;
   end;
 
+  // 9F4A Static Data Authentication Tag List
+  tlvSDATagList = packed record
+    Valid: boolean;
+
+    Items: array of AnsiString;
+
+    function Deserialize(elm: TTLV): boolean;
+  end;
+
   // (FCI) Proprietary Template
   tlvFCIPT = packed record
     Valid: boolean;
@@ -297,6 +306,7 @@ type
     function GPO: boolean;
 
     function AFLListGetParam(Tag: AnsiString): AnsiString;
+    function AFLListGetTag(Tag: AnsiString): TTLV;
     function SDA: boolean;
     function DDA: boolean;
 
@@ -493,19 +503,23 @@ end;
 
 function TEMV.AFLListGetParam(Tag: AnsiString): AnsiString;
 var
-  i: Integer;
   tlv: TTLV;
 begin
   Result := '';
 
+  tlv := AFLListGetTag(Tag);
+  if tlv <> nil then Result := tlv.Value;
+end;
+
+function TEMV.AFLListGetTag(Tag: AnsiString): TTLV;
+var
+  i: integer;
+begin
+  Result := nil;
   for i := 0 to AFLList.Count - 1 do
   begin
-    tlv := AFLList[i].FindPath(Tag);
-    if tlv <> nil then
-      begin
-        Result := tlv.Value;
-        break;
-      end;
+    Result := AFLList[i].FindPath(Tag);
+    if Result <> nil then break;
   end;
 end;
 
@@ -564,8 +578,10 @@ var
   CertIs: certIssuerPublicKey;
   CertICC: certICCPublicKey;
   SDAD: certSignedDynamicAppData;
+  SDATagList: tlvSDATagList;
   sw: word;
   tlv: TTLV;
+  i: Integer;
 begin
   Result := false;
   AddLog('* DDA');
@@ -590,6 +606,8 @@ begin
     exit;
   end;
   DecrCertificate := TChipher.RSADecode(Certificate, PublicKey);
+  AddLog('Issuer Public Key Certificate:');
+  AddLog(Bin2HexExt(DecrCertificate, true, true));
 
   // check certificate
   CertIs.CKeySize := PublicKey.Size;
@@ -618,7 +636,14 @@ begin
   CertICC.CKeySize := IssuerPublicKey.Size;
   CertICC.CRemainder := AFLListGetParam(#$9F#$48);
   CertICC.CExponent := AFLListGetParam(#$9F#$47);
-  CertICC.CSDATagList := AFLListGetParam(#$9F#$4A); // !!!!!!!!!!!!!!!!! test it!!!!
+
+  // get 9F4A Static Data Authentication Tag List
+  CertICC.CSDATagList := '';
+  SDATagList.Deserialize(AFLListGetTag(#$9F#$4A));
+  if SDATagList.Valid then
+    for i := 0 to length(SDATagList.Items) - 1 do
+      CertICC.CSDATagList := CertICC.CSDATagList + AFLListGetParam(SDATagList.Items[i]);
+
   CertICC.CPAN := AFLListGetParam(#$5A);
   CertICC.CDAinput := DAInput;
   if not CertICC.Deserialize(DecrCertificate) then
@@ -630,7 +655,7 @@ begin
     AddLog('ICC Public Key Certificate OK');
 
   ICCPublicKey.Clear;
-  ICCPublicKey.Exponent := CertICC.CExponent;
+  ICCPublicKey.Exponent := #$03; // according to EMV4.3, book 3, 6.1, page 55
   ICCPublicKey.Modulus := CertICC.ICCPublicKey;
 
   // Internal Authenticate, get Signed Dynamic Application Data
@@ -933,6 +958,7 @@ begin
         if (GPORes1.AFL[i].OfflineCount > 0) and
            (GPORes1.AFL[i].OfflineCount + GPORes1.AFL[i].StartRecN > j) then
         begin
+          // EMV 4.3 book3 10.3, page 96
           if GPORes1.AFL[i].SFI <= 10 then
             DAInput := DAInput + atlv.Value  // only value
           else
@@ -1640,7 +1666,7 @@ begin
   then exit;
 
   len := length(s) - 42;
-  ApplicationPAN := Bin2HexExt(Copy(s, 3, 10), false, true);
+  ApplicationPAN := AnsiString(Bin2HexExt(Copy(s, 3, 10), false, true));
   CertificateExpirationDate := Copy(s, 13, 2);
   CertificateSerialNumber := Copy(s, 15, 3);
   HashAlgorithmId := byte(s[18]);
@@ -1687,32 +1713,13 @@ begin
   if HashAlgorithmId <> 1 then exit;
 
   // Step 5: Concatenation
-  pk := Copy(Raw, 2, 22 + len) + CRemainder + CExponent + CDAinput;
-
-(*	var list = decryptedICC.bytes(1, (decryptedICC.length - 22));
-	var remainder = this.emv.cardDE[0x9F48];
-	var exponent = this.emv.cardDE[0x9F47];
-	var remex = remainder.concat(exponent);
-	list = list.concat(remex);
-	var daInput = this.emv.getDAInput();
-	list = list.concat(daInput);
-
-	var sdaTagList = this.emv.cardDE[0x9F4A];
-	if(typeof(sdaTagList != "undefined")) {
-		var value = new ByteBuffer();
-		for(var i = 0; i < sdaTagList.length; i++) {
-			var tag = sdaTagList.byteAt(i);
-			value = value.append(this.emv.cardDE[tag]);
-		}
-		value = value.toByteString();
-		list = list.concat(value);
-	}        *)
+  pk := Copy(Raw, 2, 20 + len) + CRemainder + CExponent + CDAinput + CSDATagList;
 
 	// Step 6: Generate hash from concatenation
   pk := TChipher.SHA1Hash(pk);
 
 	// Step 7: Compare recovered hash with generated hash
-//  if pk <> Hash then exit;
+  if pk <> Hash then exit;
 
 	// Step 8: Verify that the Issuer Identifier matches the lefmost 3-8 PAN digits
   pk := AnsiString(Bin2HexExt(CPAN, false, true));
@@ -1741,7 +1748,7 @@ begin
 
 	// Step 11: Concatenate the Leftmost Digits of the ICC Public Key
 	//          and the ICC Public Key Remainder (if present) to obtain the ICC Public Key Modulus
-  if ICCPublicKeyLength > len then // @@@ NOT TESTED!!!  in case that there is a remainder present on the card
+  if ICCPublicKeyLength > len then
     ICCPublicKey := ICCPublicKey + CRemainder;
 
   // check key
@@ -1809,6 +1816,46 @@ begin
   if pk <> Hash then exit;
 
   Result := true;
+end;
+
+{ tlvSDATagList }
+
+function tlvSDATagList.Deserialize(elm: TTLV): boolean;
+var
+  indx: integer;
+  s,
+  tag: AnsiString;
+begin
+  Result := false;
+  Valid := false;
+  SetLength(Items, 0);
+  if elm = nil then exit;
+
+  s := elm.Value;
+  if s = '' then exit;
+
+  // [Tag] list
+  indx := 1;
+
+  while True do  // @@@@ NOT TESTED!!!!!!!!
+  begin
+    tag := s[indx];
+
+    // Tag length more than 1 byte
+    if byte(tag[1]) and $1F = $1F then
+    repeat
+      if not StrSafeInc(s, indx) then break;
+      tag := tag + s[indx];
+    until byte(s[indx - 1]) and $80 = 0;
+
+    SetLength(Items, length(Items) + 1);
+    Items[length(Items) - 1] := tag;
+
+    if not StrSafeInc(s, indx) then break;
+  end;
+
+  Result := true;
+  Valid := true;
 end;
 
 end.

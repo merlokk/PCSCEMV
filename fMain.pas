@@ -168,7 +168,7 @@ begin
      // 9F02 Amount, Authorised (Numeric)
      emv.SetGPO_PDOL(#$9F#$02, #$01#$00); //amount
      // 9F37 Unpredictable Number
-     emv.SetGPO_PDOL(#$9F#$37, #$01#$23#$45#$67);
+     emv.SetGPO_PDOL(#$9F#$37, emv.RandomNumber);
      // 5F2A Transaction Currency Code
      emv.SetGPO_PDOL(#$5F#$2A, #$09#$99);  //rub
 
