@@ -17,6 +17,7 @@ type
     Button1: TButton;
     cbATR: TCheckBox;
     cbTLV: TCheckBox;
+    cbCheckExpired: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure btRefreshClick(Sender: TObject);
@@ -74,11 +75,7 @@ procedure TForm1.Button1Click(Sender: TObject);
 var
   pcscC: TPCSCConnector;
   Result: boolean;
-//  a: ATRrec;
-//  strRes: AnsiString;
   i: Integer;
-//  sw: word;
-//  tlv: TTLV;
   emv: TEMV;
 begin
   try
@@ -128,6 +125,7 @@ begin
 
       emv := TEMV.Create(pcscC);
       emv.LoggingTLV := cbTLV.Checked;
+      emv.CheckExpired := cbCheckExpired.Checked;
 
       AddLog('');
       AddLog('* * * Trying  PSE');

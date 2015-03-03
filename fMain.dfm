@@ -68,12 +68,20 @@ object Form1: TForm1
     object cbTLV: TCheckBox
       Left = 16
       Top = 79
-      Width = 217
+      Width = 233
       Height = 17
       Caption = 'Show TLV decoding'
       Checked = True
       State = cbChecked
       TabOrder = 4
+    end
+    object cbCheckExpired: TCheckBox
+      Left = 255
+      Top = 56
+      Width = 223
+      Height = 17
+      Caption = 'Check expired objects'
+      TabOrder = 5
     end
   end
   object Memo1: TMemo

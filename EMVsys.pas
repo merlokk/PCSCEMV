@@ -98,7 +98,7 @@ type
     function Deserialize(elm: TTLV): boolean;
   end;
 
-  // Application Interchange Profile
+  // 82 Application Interchange Profile
   rAIP = packed record
     Valid: boolean;
 
@@ -115,13 +115,45 @@ type
     function DecodeStr: string;
   end;
 
+  // 94	Application File Locator
   rAFL = packed record
+    Valid: boolean;
+
     SFI,
     StartRecN,
     EndRecN,
     OfflineCount: byte;
 
     function Deserialize(s: AnsiString): boolean;
+  end;
+
+  // 8E	Cardholder Verification Method (CVM) List
+  rCVMElm  = packed record
+    Valid: boolean;
+    Raw: AnsiString;
+
+    canGoNext: boolean;
+    Rule: CVMRule1;
+    Condition: CVMRule2;
+
+    function Deserialize(s: AnsiString): boolean;
+    function GetStr: string;
+  end;
+
+  // 8E	Cardholder Verification Method (CVM) List
+  rCVMList = packed record
+    Valid: boolean;
+
+    sAmountX,
+    sAmountY: AnsiString;
+
+    Items: array of rCVMElm;
+
+    AmountX,
+    AmountY: int64;
+
+    function Deserialize(s: AnsiString): boolean;
+    function GetStr: string;
   end;
 
   // 80 Response Message Template Format 1
@@ -282,7 +314,8 @@ type
 
     function GetSelectedAID: AnsiString;
   public
-    LoggingTLV: boolean;
+    LoggingTLV,
+    CheckExpired: boolean;
 
     AIDList: TList<tlvAppTemplate>;
     TLVSelectedApp: TTLV;
@@ -526,6 +559,7 @@ end;
 procedure TEMV.Clear;
 begin
   LoggingTLV := false;
+  CheckExpired := true;
   AIDList.Clear;
   TLVSelectedApp.Clear;
   FCIPTSelectedApp.Valid := false;
@@ -551,17 +585,54 @@ end;
 
 function TEMV.CVM: boolean;
 var
-  CVMlist: AnsiString;
+  CVMlist: rCVMList;
+  i: Integer;
+  StepResult: boolean;
 begin
   Result := false;
   AddLog('* * * Processing CVM (Cardholder Verification Method)');
 
-  CVMlist := AFLListGetParam(#$8E);
+  if not CVMlist.Deserialize(AFLListGetParam(#$8E)) then exit;
+  if LoggingTLV then AddLog(CVMlist.GetStr);
 
-  AddLog('* * * Verify Clear Text Pin');
+  StepResult := false;
+  for i := 0 to length(CVMlist.Items) - 1 do
+  begin
+    StepResult := false;
+    case CVMlist.Items[i].Rule of
+      cvrPlaintextPINverificationbyICC:
+        begin
+          AddLog('* * * Verify Clear Text Pin');
 
+          // TODO
+          StepResult := true;
+        end;
+      cvrSignature:
+        begin
+          AddLog('* * * Capture paper signature');
+          StepResult := true;
+        end;
+      cvrNoCVMrequired:
+        begin
+          AddLog('* * * No CVM required');
+          StepResult := true;
+        end;
+    else
+      AddLog('* * * Unsupported CVM method: ' + CVMRule1Str[CVMlist.Items[i].Rule] + ' skipping.');
+    end;
 
-  AddLog('* * * End of Processing CVM');
+    if StepResult then break;
+    if not CVMlist.Items[i].canGoNext then break;
+  end;
+
+  if StepResult then
+    AddLog('* * * End of Processing CVM')
+  else
+  begin
+    AddLog('* * * CVM Processing error');
+    exit;
+  end;
+
   Result := true;
 end;
 
@@ -642,7 +713,10 @@ begin
   SDATagList.Deserialize(AFLListGetTag(#$9F#$4A));
   if SDATagList.Valid then
     for i := 0 to length(SDATagList.Items) - 1 do
-      CertICC.CSDATagList := CertICC.CSDATagList + AFLListGetParam(SDATagList.Items[i]);
+      if SDATagList.Items[i] <> #$82 then
+        CertICC.CSDATagList := CertICC.CSDATagList + AFLListGetParam(SDATagList.Items[i])
+      else
+        CertICC.CSDATagList := CertICC.CSDATagList + GPORes1.sAIP;
 
   CertICC.CPAN := AFLListGetParam(#$5A);
   CertICC.CDAinput := DAInput;
@@ -993,7 +1067,7 @@ begin
 
     // check application expire date
     dt := EMVDateDecode(AFLListGetParam(#$5F#$24));
-    if dt < Now then
+    if CheckExpired and (dt < Now) then
     begin
       AddLog('Application expired!');
       exit;
@@ -1437,6 +1511,7 @@ end;
 function rAFL.Deserialize(s: AnsiString): boolean;
 begin
   Result := false;
+  Valid := false;
 
   SFI := 0;
   StartRecN := 0;
@@ -1451,6 +1526,7 @@ begin
   OfflineCount := byte(s[4]);
 
   Result := true;
+  Valid := true;
 end;
 
 { certIssuerPublicKey }
@@ -1858,6 +1934,128 @@ begin
 
   Result := true;
   Valid := true;
+end;
+
+{ rCVMList }
+
+function rCVMList.Deserialize(s: AnsiString): boolean;
+var
+  len: integer;
+  i: Integer;
+  elm: rCVMElm;
+begin
+  Result := false;
+  Valid := false;
+
+  sAmountX := '';
+  sAmountY := '';
+  SetLength(Items, 0);
+
+  AmountX := 0;
+  AmountY := 0;
+
+  len := length(s) - 8;
+  if (Length(s) < 6) or (len mod 2 <> 0) then exit;
+
+  sAmountX := Copy(s, 1, 4);
+  sAmountY := Copy(s, 5, 4);
+
+  AmountX := EMVIntegerDecode(sAmountX);
+  AmountY := EMVIntegerDecode(sAmountY);
+
+  for i := 0 to len div 2 - 1 do
+  begin
+    elm.Deserialize(Copy(s, 9 + i * 2, 2));
+    if elm.Valid then
+    begin
+      SetLength(Items, length(Items) + 1);
+      Items[length(Items) - 1] := elm;
+    end;
+  end;
+
+  Result := true;
+  Valid := true;
+end;
+
+function rCVMList.GetStr: string;
+var
+  i: Integer;
+begin
+  if not Valid then
+  begin
+    Result := 'Cardholder Verification Method(CVM) list not valid!' + #$0D#$0A;
+    exit;
+  end;
+
+  Result := 'Cardholder Verification Method(CVM) list:' + #$0D#$0A;
+  Result := Result + 'amount1:' + Bin2HexExt(sAmountX, true, true) + '=' + IntToStr(AmountX) + #$0D#$0A;
+  Result := Result + 'amount2:' + Bin2HexExt(sAmountY, true, true) + '=' + IntToStr(AmountY) + #$0D#$0A;
+
+  for i := 0 to length(Items) - 1 do
+    Result := Result + Items[i].GetStr + #$0D#$0A;
+end;
+
+{ rCVMElm }
+
+function rCVMElm.Deserialize(s: AnsiString): boolean;
+var
+  b: byte;
+begin
+  Result := false;
+  Valid := false;
+  Raw := '';
+
+  if (Length(s) <>2) then exit;
+
+  Raw := s;
+
+  // CV Rule Byte 1
+  b := byte(s[1]);
+  canGoNext := b and $40 <> 0;
+  b := b and $3F;
+  Rule := cvrFailCVMprocessing;
+  if b = $00 then Rule := cvrFailCVMprocessing;
+  if b = $01 then Rule := cvrPlaintextPINverificationbyICC;
+  if b = $02 then Rule := cvmEncipheredPINverifiedonline;
+  if b = $03 then Rule := cvrPlainPINverifybyICCandSignature;
+  if b = $04 then Rule := cvrEncipheredPINverifybyICC;
+  if b = $05 then Rule := cvrEncpiheredPINverifybyICCandSignature;
+  if b in [$06..$1D] then Rule := cvrRFU;
+  if b = $1E then Rule := cvrSignature;
+  if b = $1F then Rule := cvrNoCVMrequired;
+  if b in [$20..$3E] then Rule := cvrRFU;
+  if b = $3F then Rule := cvrNA;
+
+  // CV Rule Byte 2
+  b := byte(s[2]);
+  Condition := cvcAlways;
+  if b = $00 then Condition := cvcAlways;
+  if b = $01 then Condition := cvcIfUnattendedCash;
+  if b = $02 then Condition := cvcIfNotUnattendedCashNotManualCashNotCashback;
+  if b = $03 then Condition := cvcIfTerminalSupportsCVM;
+  if b = $04 then Condition := cvcIfManualCash;
+  if b = $05 then Condition := cvcIfPurchaseWithCashback;
+  if b = $06 then Condition := cvcIfTransactionInAppCurrencyAndUnderX;
+  if b = $07 then Condition := cvcIfTransactionInAppCurrencyAndOverX;
+  if b = $08 then Condition := cvcIfTransactionInAppCurrencyAndUnderY;
+  if b = $09 then Condition := cvcIfTransactionInAppCurrencyAndOverY;
+  if b in [$20..$7F] then Condition := cvcRFU;
+  if b in [$80..$FF] then Condition := cvcRFUIndividualPayments;
+
+
+  Result := true;
+  Valid := true;
+end;
+
+function rCVMElm.GetStr: string;
+begin
+  Result := Bin2HexExt(Raw, true, true) + ': ' + CVMRule2Str[Condition] + ' --> ' +
+    CVMRule1Str[Rule] + '.';
+
+  if canGoNext then
+    Result := Result + ' NEXT'
+  else
+    Result := Result + ' STOP';
 end;
 
 end.

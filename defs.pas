@@ -14,6 +14,7 @@ var
 procedure AddLog(s: string);
 
 function EMVDateDecode(s: AnsiString): TDateTime;
+function EMVIntegerDecode(s: AnsiString): int64;
 
 function Hex2Bin(input: string): AnsiString;
 function Bin2HexExt(const input:AnsiString; const spaces, upcase: boolean): string;
@@ -58,6 +59,15 @@ begin
   except
     Result := 0;
   end;
+end;
+
+function EMVIntegerDecode(s: AnsiString): int64;
+begin
+  Result := 0;
+
+  if (length(s) < 1) or (length(s) > 8) then exit;
+
+  Result := StrToIntDef(Bin2HexExt(s, false, true), 0);
 end;
 
 function Hex2Bin(input: string): AnsiString;

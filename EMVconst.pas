@@ -18,6 +18,14 @@ type
     Value: string;
   end;
 
+  CVMRule1 = (cvrFailCVMprocessing, cvrPlaintextPINverificationbyICC, cvmEncipheredPINverifiedonline,
+    cvrPlainPINverifybyICCandSignature, cvrEncipheredPINverifybyICC, cvrEncpiheredPINverifybyICCandSignature,
+    cvrRFU, cvrSignature, cvrNoCVMrequired, cvrNA);
+  CVMRule2 = (cvcAlways, cvcIfUnattendedCash, cvcIfNotUnattendedCashNotManualCashNotCashback,
+    cvcIfTerminalSupportsCVM, cvcIfManualCash, cvcIfPurchaseWithCashback, cvcIfTransactionInAppCurrencyAndUnderX,
+    cvcIfTransactionInAppCurrencyAndOverX, cvcIfTransactionInAppCurrencyAndUnderY, cvcIfTransactionInAppCurrencyAndOverY,
+    cvcRFU, cvcRFUIndividualPayments);
+
 function GetEMVTag(Tag: AnsiString): TEMVTag;
 function DecodeAIP(aip: AnsiString): string;
 
@@ -35,6 +43,32 @@ const
 	  (id: $20; Value:'DDA supported (Dynamic Data Authentication)'),
 	  (id: $40; Value:'SDA supported (Static Data Authentiction)')
 	  );
+
+  CVMRule1Str: Array[CVMRule1] of string = (
+    'Fail CVM processing',
+    'Plaintext PIN verification performed by ICC',
+    'Enciphered PIN verified online',
+    'Plaintext PIN verification performed by ICC and signature (paper)',
+    'Enciphered PIN verification performed by ICC',
+    'Encpihered PIN verification performed by ICC and signature (paper)',
+    'Values in this range reserved for future use by this specification',
+    'Signature (paper)',
+    'No CVM required',
+    'This value is not available for use');
+
+  CVMRule2Str: Array[CVMRule2] of string = (
+    'Always',
+    'If unattended cash',
+    'If not unattended cash and not manual cash and not purchase with cashback',
+    'If terminal supports the CVM',
+    'If manual cash',
+    'If purchase with cashback',
+    'If transaction is in the application currency and is under X value',
+    'If transaction is in the application currency and is over X value',
+    'If transaciton is in the application currency and is under Y value',
+    'If transaciton is in the application currency and is over Y value',
+    'RFU',
+    'Reserved for use by individual payment systems');
 
 implementation
 
