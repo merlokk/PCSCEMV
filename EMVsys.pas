@@ -219,6 +219,7 @@ type
 
     // parameters!
     CKeySize: Integer;
+    CRandomNum: AnsiString;
 
     procedure Clear;
     function Deserialize(s: AnsiString): boolean;
@@ -281,6 +282,8 @@ type
     GPORes2: tlvRespTmplF2;
     AFLList: TObjectList<TTLV>;
     DAInput: AnsiString;
+
+    RandomNumber: AnsiString;
 
     property SelectedAID: AnsiString read GetSelectedAID;
 
@@ -515,6 +518,8 @@ begin
   GPORes2.Valid := false;
   AFLList.Clear;
   DAInput := '';
+
+  RandomNumber := #$01#$23#$45#$67;
 end;
 
 constructor TEMV.Create;
@@ -611,11 +616,11 @@ begin
   ICCPublicKey.Modulus := CertICC.ICCPublicKey;
 
   // Internal Authenticate, get Signed Dynamic Application Data
-  AddLog('* * Internal Authenticate.');
+  AddLog('* * * Internal Authenticate (Unpredictable Number: ' + Bin2HexExt(RandomNumber, false, true) + ')');
 
   res := AFLListGetParam(#$9F#$49); // DDOL!!!!  ADD PROCESSING!!!
-  ddol := #$01#$23#$45#$67;
-  if res = '' then ddol := #$01#$23#$45#$67;
+  ddol := RandomNumber;
+  if res = '' then ddol := RandomNumber;
 
   res := FpcscC.InternalAuthenticate(ddol, sw);
   AddLog('****' + Bin2HexExt(res, true, true));
@@ -656,6 +661,12 @@ begin
   AddLog('Signed Dynamic Application Data:');
   AddLog(Bin2HexExt(DecrCertificate, true, true));
 
+  //  80 Response Message Template Format 1
+  if res[1] = #$80 then
+    DecrCertificate := Copy(DecrCertificate, 4, length(DecrCertificate));
+
+  SDAD.CKeySize := ICCPublicKey.Size;
+  SDAD.CRandomNum := RandomNumber;
   if not SDAD.Deserialize(DecrCertificate) then
   begin
     AddLog('Signed Dynamic Application Data error');
@@ -663,6 +674,8 @@ begin
   end
   else
     AddLog('Signed Dynamic Application Data OK');
+
+  AddLog('* DDA OK');
 
   Result := true;
 end;
@@ -1739,13 +1752,19 @@ var
 begin
   Result := false;
   Clear;
-  if (length(s) < 36) or
+  if (length(s) < 25) or
      (s[1] <> #$6A) or
      (s[2] <> #$05) or
      (s[length(s)] <> #$BC)
   then exit;
 
   len := length(s) - 25;
+
+  HashAlgorithmId := byte(s[3]);
+  ICCDynDataLenCnt := byte(s[4]);
+  ICCDynDataLen := Copy(s, 5, ICCDynDataLenCnt);
+  PadPattern := Copy(s, 5 + ICCDynDataLenCnt, len - ICCDynDataLenCnt);
+  Hash := Copy(s, 5 + len, 20);
 
   Raw := s;
   // Check decrypted data
@@ -1763,13 +1782,15 @@ begin
 	if Raw[2] <> #$05 then exit;
 
 	// Step 5: Concatenation of Signed Data Format, Hash Algorithm Indicator, ICC Dynamic Data Length, ICC Dynamic Data, Pad Pattern, random number
-  pk := Copy(Raw, 2, 5 + len);       // @@@@ NOT TESTED!!!!!
+  pk := Copy(Raw, 2, 3 + len) + CRandomNum;
 
 	// Step 6: Genereate hash from concatenation
   pk := TChipher.SHA1Hash(pk);
 
 	// Step 7: Compare recovered hash with generated hash
   if pk <> Hash then exit;
+
+  Result := true;
 end;
 
 end.
