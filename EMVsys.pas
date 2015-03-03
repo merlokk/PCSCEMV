@@ -1120,6 +1120,7 @@ var
   pinblock: AnsiString;
   refdata,
   len: byte;
+  trycount: integer;
   sw: word;
   res: AnsiString;
 begin
@@ -1127,7 +1128,9 @@ begin
   len := length(pin);
   if (len < $04) or (len > $0C) then exit;   // EMV 4.3 book 3, 6.5.12
 
-  if GetPINTryCount < 1 then exit;
+  trycount := GetPINTryCount;
+  AddLog('Pin try count=' + IntToStr(trycount));
+  if trycount < 2 then exit;  // here must be 1 but we avoid card PIN blocking
 
   // EMV 4.3 book 3, 6.5.12, page 67
   refdata := $80; // 10000000 - Plaintext PIN
