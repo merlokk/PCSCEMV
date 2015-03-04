@@ -1152,7 +1152,9 @@ begin
   begin
     AddLog('Pin Verification error!');
     exit;
-  end;
+  end
+  else
+    AddLog('Pin OK.');
 
   Result := true;
 end;

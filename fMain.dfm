@@ -22,13 +22,19 @@ object Form1: TForm1
     Align = alTop
     BevelOuter = bvNone
     TabOrder = 0
-    ExplicitWidth = 841
     object Label1: TLabel
       Left = 16
       Top = 24
       Width = 47
       Height = 16
       Caption = 'Readers'
+    end
+    object Label2: TLabel
+      Left = 459
+      Top = 79
+      Width = 19
+      Height = 16
+      Caption = 'PIN'
     end
     object cbReaders: TComboBox
       Left = 69
@@ -91,6 +97,14 @@ object Form1: TForm1
       Caption = 'Verify PIN!!!!'
       TabOrder = 6
     end
+    object edPIN: TEdit
+      Left = 484
+      Top = 76
+      Width = 49
+      Height = 24
+      TabOrder = 7
+      Text = '1234'
+    end
   end
   object Memo1: TMemo
     Left = 0
@@ -100,6 +114,5 @@ object Form1: TForm1
     Align = alClient
     ScrollBars = ssVertical
     TabOrder = 1
-    ExplicitWidth = 841
   end
 end
