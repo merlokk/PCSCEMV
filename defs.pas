@@ -3,7 +3,7 @@ unit defs;
 interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, System.AnsiStrings,
-  DateUtils;
+  DateUtils, math;
 
 type
   TLogger = procedure(s: string);
@@ -15,6 +15,7 @@ procedure AddLog(s: string);
 
 function EMVDateDecode(s: AnsiString): TDateTime;
 function EMVIntegerDecode(s: AnsiString): int64;
+function EMVIntegerHexDecode(s: AnsiString): int64;
 
 function Hex2Bin(input: string): AnsiString;
 function Bin2HexExt(const input:AnsiString; const spaces, upcase: boolean): string;
@@ -58,6 +59,23 @@ begin
     Result := EncodeDate(year, month, day);
   except
     Result := 0;
+  end;
+end;
+
+function EMVIntegerHexDecode(s: AnsiString): int64;
+var
+  i: Integer;
+  x: int64;
+begin
+  Result := 0;
+
+  if (length(s) < 1) or (length(s) > 8) then exit;
+
+  x := 1;
+  for i := length(s) downto 1 do
+  begin
+    Result := Result + byte(s[i]) * x;
+    x := x * $100;
   end;
 end;
 

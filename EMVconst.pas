@@ -26,6 +26,10 @@ type
     cvcIfTransactionInAppCurrencyAndOverX, cvcIfTransactionInAppCurrencyAndUnderY, cvcIfTransactionInAppCurrencyAndOverY,
     cvcRFU, cvcRFUIndividualPayments);
 
+  ACTransactionDecision = (tdAAC, tdTC, tdARQC, tdAAR);
+  ACReasonCode = (reNoInformationGiven, reServiceNotAllowed, rePINTryLimitExceeded,
+    reIssuerAuthenticationFailed, reRFU);
+
 function GetEMVTag(Tag: AnsiString): TEMVTag;
 function DecodeAIP(aip: AnsiString): string;
 
@@ -69,6 +73,20 @@ const
     'If transaciton is in the application currency and is over Y value',
     'RFU',
     'Reserved for use by individual payment systems');
+
+  ACTransactionDecisionStr: Array[ACTransactionDecision] of string = (
+    'AAC (Transaction declined)',
+    'TC (Transaction approved)',
+    'ARQC (Online authorisation requested)',
+    'AAR (Referral requested by the card)');
+
+  ACReasonCodeStr: Array[ACReasonCode] of string = (
+    'No information given',
+    'Service not allowed',
+    'PIN Try Limit exceeded',
+    'Issuer authentication failed',
+    'RFU');
+
 
 implementation
 

@@ -180,29 +180,25 @@ type
     function Deserialize(elm: TTLV): boolean;
   end;
 
-  recSID  = packed record
-    isAAC,
-    isTC,
-    isARQC,
-    isAAR,
+  rSID  = packed record
+    Raw: byte;
 
+    ACT: ACTransactionDecision;
+    CDASignRequested, // inputof AC command
     AdviceRequired: boolean;
-
-    NoInformationGiven,
-    ServiceNotAllowed,
-    PINTryLimitExceeded,
-    IssuerAuthenticationFailed,
-    RFU: boolean;
+    RC: ACReasonCode;
 
     procedure Clear;
     procedure Deserialize(b: byte);
+    function Serialize: byte;
+    function DecodeStr: string;
   end;
 
   // 80 AC Response Message Template Format 1
   tlvRespTmplAC1 = packed record
     Valid: boolean;
 
-    CID: recSID;
+    CID: rSID;
     ATC: integer;
     sCID,
     sATC,
@@ -219,6 +215,45 @@ type
 
     procedure Clear;
     function Serialize: AnsiString;
+  end;
+
+  // Transaction Verification Results (TVR)
+  rTVR = packed record
+    //b1
+    OfflineDataAuthNotPerformed,
+    SDAFailed,
+    ICCDataMissing,
+    CardOnTerminalExceptionFile,
+    DDAFailed,
+    CDAFailed,
+    //b2
+    ICCandTerminalDifferentAppVersions,
+    ExpiredApp,
+    AppNotYetEffective,
+    RequestedServiceNotAllowedForCard,
+    NewCard,
+    //b3
+    CardholderVerificationWasNotSuccessful,
+    UnrecognisedCVM,
+    PINTryLimitExceeded,
+    PINEntryRequiredAndPINpadNotPresent,
+    PINEntryRequiredPINpadPresentPINWasNotEntered,
+    OnlinePINEntered,
+    //b4
+    TransactionExceedsFloorLimit,
+    LowerConsOfflineLimitExceeded,
+    UpperConsOfflineLimitExceeded,
+    TransactionSelectedRandomlyForOnlineProcessing,
+    MerchantForcedTransactionOnline,
+    //b5
+    DefaultTDOLused,
+    IssuerAuthenticationFailed,
+    ScriptProcessingFailedBeforeFinalGENERATEAC: boolean;
+
+    procedure Clear;
+    function Serialize: AnsiString;
+    function Deserialize(s: AnsiString): boolean;
+    function DecodeStr: string;
   end;
 
   // Issuer Public Key Certificate
@@ -598,20 +633,10 @@ var
   res: AnsiString;
   tlv: TTLV;
   resAC: tlvRespTmplAC1;
+  sid: rSID;
 begin
   Result := false;
   AddLog('* * * Generate First AC');
-
-  AddLog('CDOL1: ');
-  AddLog(CDOL1.DecodeStr('^'));
-  AddLog('CDOL2: ');
-  AddLog(CDOL1.DecodeStr('^'));
-
-  if not CDOL1.Valid or not CDOL2.Valid then
-  begin
-    AddLog('CDOL not valid. exit.');
-    exit;
-  end;
 
   // get random number from card
   ICCDynamicNumber := FpcscC.GetChallenge(sw);
@@ -627,8 +652,23 @@ begin
   CDOL1.SetTagValue(#$9F#$4C, ICCDynamicNumber);
   CDOL2.SetTagValue(#$9F#$4C, ICCDynamicNumber);
 
+  // CDOL logging
+  AddLog('CDOL1: ');
+  AddLog(CDOL1.DecodeStr('^'));
+  AddLog('CDOL2: ');
+  AddLog(CDOL2.DecodeStr('^'));
+
+  if not CDOL1.Valid or not CDOL2.Valid then
+  begin
+    AddLog('CDOL not valid. exit.');
+    exit;
+  end;
+
   // AC1
-  res := FpcscC.GenerateAC($40, CDOL1.SerializeValues, sw);
+  sid.Clear;
+  sid.ACT := tdTC; // request for offline transaction
+
+  res := FpcscC.GenerateAC(sid.Serialize, CDOL1.SerializeValues, sw);
   if sw <> $9000 then
   begin
     AddLog('Command GENERATE AC1 error: ' + IntToHex(sw, 4));
@@ -642,7 +682,9 @@ begin
     case res[1] of
     #$80: // 80 Response Message Template Format 1
       begin
-        resAC.Deserialize(res);
+        tlv.Deserealize(res);
+        resAC.Deserialize(tlv.Value);
+        if LoggingTLV then AddLog(resAC.DecodeStr);
       end;
     #$77: // 77 Response Message Template Format 2
       begin
@@ -665,7 +707,37 @@ begin
     exit;
   end;
 
+  case resAC.CID.ACT of
+    tdAAC:
+      begin
+        AddLog('Transaction declined.');
+        exit;
+      end;
+    tdTC:
+      begin
+        AddLog('Transaction approved offline.');
+        exit;
+      end;
+  end;
 
+  // IT needs to send AC2 command
+  if resAC.CID.ACT = tdARQC then
+  begin
+    //A2
+    AddLog('* * * Generate Second AC');
+    sid.Clear;
+    sid.ACT := tdTC; // request for online transaction
+
+    res := FpcscC.GenerateAC(sid.Serialize, CDOL2.SerializeValues, sw);
+    if sw <> $9000 then
+    begin
+      AddLog('Command GENERATE AC2 error: ' + IntToHex(sw, 4));
+      exit;
+    end;
+    if length(res) = 0 then exit;
+    AddLog('****' + Bin2HexExt(res, true, true));
+
+  end;
 
   Result := true;
 end;
@@ -960,6 +1032,7 @@ end;
 function TEMV.FillCDOLRecords(UseGoodTVR: boolean): boolean;
 var
   elm: TTLV;
+  tvr: rTVR;
 begin
   Result := false;
 
@@ -991,16 +1064,21 @@ begin
   end;
 
   // make TVR
+  tvr.Clear;
   if UseGoodTVR then
   begin
     AddLog('* Use good TVR');
 
-
+    tvr.Clear;
   end
   else
   begin
 
   end;
+
+  //95:(Terminal Verification Results) len:5
+  CDOL1.SetTagValue(#$95, tvr.Serialize);
+  CDOL2.SetTagValue(#$95, tvr.Serialize);
 
   Result := true;
 end;
@@ -1317,12 +1395,12 @@ begin
 
   // EMV 4.3 book 3, 6.5.12, page 67
   refdata := $80; // 10000000 - Plaintext PIN
-  pinblock := '2' + IntToHex(len, 1);
+  pinblock := '2' + AnsiString(IntToHex(len, 1));
   pinblock := pinblock + pin;
   while length(pinblock) < 16 do
     pinblock := pinblock + 'F';
 
-  pinblock := Hex2Bin(pinblock);
+  pinblock := Hex2Bin(string(pinblock));
 
   res:= FpcscC.VerifyPIN(pinblock, refdata, sw);
   if Hi(sw) = $63 then
@@ -2332,7 +2410,11 @@ end;
 
 function tlvRespTmplAC1.DecodeStr: string;
 begin
-
+  Result := 'Cryptogram Information Data (CID):' + CID.DecodeStr + #$0D#$0A +
+    'Application Transaction Counter (ATC):' + IntToStr(ATC) + #$0D#$0A +
+    'Application Cryptogram (AC):' + Bin2HexExt(AC, true, true) + #$0D#$0A;
+  if IAD <> '' then
+     Result := Result + 'Issuer Application Data (IAD):' + Bin2HexExt(IAD, true, true) + #$0D#$0A;
 end;
 
 function tlvRespTmplAC1.Deserialize(data: AnsiString): boolean;
@@ -2355,20 +2437,239 @@ begin
   AC := Copy(data, 4, 8);
   IAD := Copy(data, 12, length(data)); // optional
 
+  CID.Deserialize(byte(sCID[1]));
+  ATC := EMVIntegerHexDecode(sATC);
+
   Result := true;
   Valid := true;
 end;
 
 { recSID }
 
-procedure recSID.Clear;
+procedure rSID.Clear;
 begin
-
+  ACT := tdAAC;
+  AdviceRequired := false;
+  RC := reNoInformationGiven;
 end;
 
-procedure recSID.Deserialize(b: byte);
+function rSID.DecodeStr: string;
 begin
+  Result := IntToHex(Raw, 2) + ': ' + ACTransactionDecisionStr[ACT] + '. ';
+  if AdviceRequired then
+    Result := Result + 'advice. '
+  else
+    Result := Result + 'final. ';
+  if CDASignRequested then
+    Result := Result + ' 	CDA signature requested.';
+end;
 
+procedure rSID.Deserialize(b: byte);
+begin
+  Raw := b;
+
+  if b and $C0 = $00 then ACT := tdAAC;
+  if b and $C0 = $40 then ACT := tdTC;
+  if b and $C0 = $80 then ACT := tdARQC;
+  if b and $C0 = $C0 then ACT := tdAAR;
+
+  CDASignRequested := b and $10 <> 0;
+  AdviceRequired := b and $08 <> 0;
+
+  if b and $07 = $00 then RC := reNoInformationGiven;
+  if b and $07 = $01 then RC := reServiceNotAllowed;
+  if b and $07 = $02 then RC := rePINTryLimitExceeded;
+  if b and $07 = $03 then RC := reIssuerAuthenticationFailed;
+  if b and $07 >= $04 then RC := reRFU;
+end;
+
+function rSID.Serialize: byte;
+begin
+  Result := 0;
+
+  case ACT of
+    tdAAC: Result := $00;
+    tdTC: Result := $40;
+    tdARQC: Result := $80;
+    tdAAR: Result := $C0;
+  end;
+
+  if CDASignRequested then Result := Result or $10;
+  if AdviceRequired then Result := Result or $08;
+
+  case RC of
+    reNoInformationGiven: Result := Result or $00;
+    reServiceNotAllowed: Result := Result or $01;
+    rePINTryLimitExceeded: Result := Result or $02;
+    reIssuerAuthenticationFailed: Result := Result or $03;
+    reRFU: Result := Result or $04;
+  end;
+
+  Raw := Result;
+end;
+
+{ rTVR }
+
+procedure rTVR.Clear;
+begin
+  //b1
+  OfflineDataAuthNotPerformed := false;
+  SDAFailed := false;
+  ICCDataMissing := false;
+  CardOnTerminalExceptionFile := false;
+  DDAFailed := false;
+  CDAFailed := false;
+  //b2
+  ICCandTerminalDifferentAppVersions := false;
+  ExpiredApp := false;
+  AppNotYetEffective := false;
+  RequestedServiceNotAllowedForCard := false;
+  NewCard := false;
+  //b3
+  CardholderVerificationWasNotSuccessful := false;
+  UnrecognisedCVM := false;
+  PINTryLimitExceeded := false;
+  PINEntryRequiredAndPINpadNotPresent := false;
+  PINEntryRequiredPINpadPresentPINWasNotEntered := false;
+  OnlinePINEntered := false;
+  //b4
+  TransactionExceedsFloorLimit := false;
+  LowerConsOfflineLimitExceeded := false;
+  UpperConsOfflineLimitExceeded := false;
+  TransactionSelectedRandomlyForOnlineProcessing := false;
+  MerchantForcedTransactionOnline := false;
+  //b5
+  DefaultTDOLused := false;
+  IssuerAuthenticationFailed := false;
+  ScriptProcessingFailedBeforeFinalGENERATEAC := false;
+end;
+
+function rTVR.DecodeStr: string;
+var
+ r: string;
+begin
+  //b1
+  if OfflineDataAuthNotPerformed then r := r + 'Offline data authentication was not performed' + #$0D#$0A;
+  if SDAFailed then r := r + 'SDA failed' + #$0D#$0A;
+  if ICCDataMissing then r := r + 'ICC data missing' + #$0D#$0A;
+  if CardOnTerminalExceptionFile then r := r + 'Card appears on terminal exception file' + #$0D#$0A;
+  if DDAFailed then r := r + 'DDA failed' + #$0D#$0A;
+  if CDAFailed then r := r + 'CDA failed' + #$0D#$0A;
+  //b2
+  if ICCandTerminalDifferentAppVersions then r := r + 'ICC and terminal have different applicatioin versions' + #$0D#$0A;
+  if ExpiredApp then r := r + 'Expired application' + #$0D#$0A;
+  if AppNotYetEffective then r := r + 'Application not yet effective' + #$0D#$0A;
+  if RequestedServiceNotAllowedForCard then r := r + 'Requested service not allowed for card product' + #$0D#$0A;
+  if NewCard then r := r + 'New Card' + #$0D#$0A;
+  //b3
+  if CardholderVerificationWasNotSuccessful then r := r + 'Cardholder verification was not successful' + #$0D#$0A;
+  if UnrecognisedCVM then r := r + 'Unrecognised CVM' + #$0D#$0A;
+  if PINTryLimitExceeded then r := r + 'PIN Try Limit exceeded' + #$0D#$0A;
+  if PINEntryRequiredAndPINpadNotPresent then r := r + 'PIN entry required and PIN pad not present or not working' + #$0D#$0A;
+  if PINEntryRequiredPINpadPresentPINWasNotEntered then r := r + 'PIN entry required, PIN pad present, but PIN was not entered' + #$0D#$0A;
+  if OnlinePINEntered then r := r + 'Online PIN entered' + #$0D#$0A;
+  //b4
+  if TransactionExceedsFloorLimit then r := r + 'Transaction exceeds floor limit' + #$0D#$0A;
+  if LowerConsOfflineLimitExceeded then r := r + 'Lower consecutive offline limit exceeded' + #$0D#$0A;
+  if UpperConsOfflineLimitExceeded then r := r + 'Upper consecutive offline limit exceeded' + #$0D#$0A;
+  if TransactionSelectedRandomlyForOnlineProcessing then r := r + 'Transaction selected randomly for online processing' + #$0D#$0A;
+  if MerchantForcedTransactionOnline then r := r + 'Merchant forced transaction online' + #$0D#$0A;
+  //b5
+  if DefaultTDOLused then r := r + 'Default TDOL used' + #$0D#$0A;
+  if IssuerAuthenticationFailed then r := r + 'Issuer authentication failed' + #$0D#$0A;
+  if ScriptProcessingFailedBeforeFinalGENERATEAC then r := r + 'Script processing failed before final GENERATE AC' + #$0D#$0A;
+
+  if r <> '' then
+    Result := r
+  else
+    Result := 'OK';
+end;
+
+function rTVR.Deserialize(s: AnsiString): boolean;
+var
+  b: array[1..5] of byte;
+  i: integer;
+begin
+  Result := false;
+  if length(s) <> 5 then exit;
+  for i := 1 to 5 do b[i] := byte(s[i]);
+
+  //b1
+  OfflineDataAuthNotPerformed := b[1] and $80 <> 0;
+  SDAFailed := b[1] and $40 <> 0;
+  ICCDataMissing := b[1] and $20 <> 0;
+  CardOnTerminalExceptionFile := b[1] and $10 <> 0;
+  DDAFailed := b[1] and $08 <> 0;
+  CDAFailed := b[1] and $04 <> 0;
+  //b2
+  ICCandTerminalDifferentAppVersions := b[2] and $80 <> 0;
+  ExpiredApp := b[2] and $40 <> 0;
+  AppNotYetEffective := b[2] and $20 <> 0;
+  RequestedServiceNotAllowedForCard := b[2] and $10 <> 0;
+  NewCard := b[2] and $08 <> 0;
+  //b3
+  CardholderVerificationWasNotSuccessful := b[3] and $80 <> 0;
+  UnrecognisedCVM := b[3] and $40 <> 0;
+  PINTryLimitExceeded := b[3] and $20 <> 0;
+  PINEntryRequiredAndPINpadNotPresent := b[3] and $10 <> 0;
+  PINEntryRequiredPINpadPresentPINWasNotEntered := b[3] and $08 <> 0;
+  OnlinePINEntered := b[3] and $04 <> 0;
+  //b4
+  TransactionExceedsFloorLimit := b[4] and $80 <> 0;
+  LowerConsOfflineLimitExceeded := b[4] and $40 <> 0;
+  UpperConsOfflineLimitExceeded := b[4] and $20 <> 0;
+  TransactionSelectedRandomlyForOnlineProcessing := b[4] and $10 <> 0;
+  MerchantForcedTransactionOnline := b[4] and $08 <> 0;
+  //b5
+  DefaultTDOLused := b[5] and $80 <> 0;
+  IssuerAuthenticationFailed := b[5] and $40 <> 0;
+  ScriptProcessingFailedBeforeFinalGENERATEAC := b[5] and $20 <> 0;
+
+  Result := true;
+end;
+
+function rTVR.Serialize: AnsiString;
+var
+  b: array[1..5] of byte;
+  i: integer;
+begin
+  for i := 1 to 5 do b[i] := 0;
+
+  //b1
+  if OfflineDataAuthNotPerformed then b[1] := b[1] or $80;
+  if SDAFailed then b[1] := b[1] or $40;
+  if ICCDataMissing then b[1] := b[1] or $20;
+  if CardOnTerminalExceptionFile then b[1] := b[1] or $10;
+  if DDAFailed then b[1] := b[1] or $08;
+  if CDAFailed then b[1] := b[1] or $04;
+  //b2
+  if ICCandTerminalDifferentAppVersions then b[2] := b[2] or $80;
+  if ExpiredApp then b[2] := b[2] or $40;
+  if AppNotYetEffective then b[2] := b[2] or $20;
+  if RequestedServiceNotAllowedForCard then b[2] := b[2] or $10;
+  if NewCard then b[2] := b[2] or $08;
+  //b3
+  if CardholderVerificationWasNotSuccessful then b[3] := b[3] or $80;
+  if UnrecognisedCVM then b[3] := b[3] or $40;
+  if PINTryLimitExceeded then b[3] := b[3] or $20;
+  if PINEntryRequiredAndPINpadNotPresent then b[3] := b[3] or $10;
+  if PINEntryRequiredPINpadPresentPINWasNotEntered then b[3] := b[3] or $08;
+  if OnlinePINEntered then b[3] := b[3] or $04;
+  //b4
+  if TransactionExceedsFloorLimit then b[4] := b[4] or $80;
+  if LowerConsOfflineLimitExceeded then b[4] := b[4] or $40;
+  if UpperConsOfflineLimitExceeded then b[4] := b[4] or $20;
+  if TransactionSelectedRandomlyForOnlineProcessing then b[4] := b[4] or $10;
+  if MerchantForcedTransactionOnline then b[4] := b[4] or $08;
+  //b5
+  if DefaultTDOLused then b[5] := b[5] or $80;
+  if IssuerAuthenticationFailed then b[5] := b[5] or $40;
+  if ScriptProcessingFailedBeforeFinalGENERATEAC then b[5] := b[5] or $20;
+
+
+
+  Result := '';
+  for i := 1 to 5 do Result := Result + AnsiChar(b[i]);
 end;
 
 end.

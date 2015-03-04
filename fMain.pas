@@ -210,22 +210,28 @@ begin
 
     //9F02:(Amount, Authorised (Numeric)) len:6
     emv.CDOL1.SetTagValue(#$9F#$02, #$00#$00#$00#$00#$01#$00);
+    emv.CDOL2.SetTagValue(#$9F#$02, #$00#$00#$00#$00#$01#$00);
     //9F03:(Amount, Other (Numeric)) len:6
     emv.CDOL1.SetTagValue(#$9F#$03, #$00#$00#$00#$00#$00#$00);
+    emv.CDOL2.SetTagValue(#$9F#$03, #$00#$00#$00#$00#$00#$00);
     //9F1A:(Terminal Country Code) len:2
     emv.CDOL1.SetTagValue(#$9F#$1A, 'ru');
-    //95:(Terminal Verification Results) len:5
-    emv.CDOL1.SetTagValue(#$95, #$00#$00#$00#$00#$00);
+    emv.CDOL2.SetTagValue(#$9F#$1A, 'ru');
     //5F2A:(Transaction Currency Code) len:2
     emv.CDOL1.SetTagValue(#$5F#$2A, #$09#$99);  // rub
+    emv.CDOL2.SetTagValue(#$5F#$2A, #$09#$99);  // rub
     //9A:(Transaction Date) len:3
     emv.CDOL1.SetTagValue(#$9A, #$00#$00#$00);
+    emv.CDOL2.SetTagValue(#$9A, #$00#$00#$00);
     //9C:(Transaction Type) len:1
     emv.CDOL1.SetTagValue(#$9C, #$00);
+    emv.CDOL2.SetTagValue(#$9C, #$00);
     //9F37:(Unpredictable Number) len:4
     emv.CDOL1.SetTagValue(#$9F#$37, emv.RandomNumber);
+    emv.CDOL2.SetTagValue(#$9F#$37, emv.RandomNumber);
     // 9f45 Data Authentication Code
     emv.CDOL1.SetTagValue(#$9F#$37, emv.AFLListGetParam(#$9F#$45));
+    emv.CDOL2.SetTagValue(#$9F#$37, emv.AFLListGetParam(#$9F#$45));
 
     // AC
     if not emv.AC then exit;
