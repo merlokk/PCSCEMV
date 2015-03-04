@@ -159,6 +159,8 @@ type
     function    GetData(id: AnsiString; var sw: Word): AnsiString;
     function    InternalAuthenticate(data: AnsiString; var sw: Word): AnsiString;
     function    VerifyPIN(data: AnsiString; refdata: byte;var sw: Word): AnsiString;
+    function    GetChallenge(var sw: Word): AnsiString;
+    function    GenerateAC(RefControl: byte; data: AnsiString; var sw: Word): AnsiString;
 
   published
     property UseReaderNum: integer    read FUseReaderNum    write SetReaderNum  default -1;
@@ -648,6 +650,20 @@ begin
 
 end;
 
+function TPCSCConnector.GenerateAC(RefControl: byte; data: AnsiString; var sw: Word): AnsiString;
+var
+  len: integer;
+begin
+  Result := '';
+  len := length(data);
+  if len > $FF then exit;
+
+  Result := data;
+  if not GetResponseFromCard(#$80#$AE + AnsiChar(RefControl) + #$00 + AnsiChar(len), Result, sw)
+  then
+    Result := '';
+end;
+
 function TPCSCConnector.GetATR: ATRRec;
 begin
   Result.Clear;
@@ -669,6 +685,23 @@ end;
 
 procedure TPCSCConnector.GetCardAttributes;
 begin
+end;
+
+function TPCSCConnector.GetChallenge(var sw: Word): AnsiString;
+begin
+  Result := '';
+  if not GetResponseFromCard(#$00#$84#$00#$00, Result, sw)
+  then
+    Result := '';
+
+  if Hi(sw) = $6C then
+  begin
+    Result := '';
+    if not GetResponseFromCard(
+          #$00#$84#$00$00 + AnsiChar(Lo(sw)), Result, sw)
+    then
+      Result := '';
+  end;
 end;
 
 function TPCSCConnector.GetData(id: AnsiString; var sw: Word): AnsiString;

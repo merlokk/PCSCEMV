@@ -19,6 +19,8 @@ type
   TagsEnum = (teUnknown,
     teFCIPT,              // A5   File Control Information (FCI) Proprietary Template
     tePDOL,               // 9F38 Processing Options Data Object List (PDOL)
+    teCDOL1,              // 8C   Card Risk Management Data Object List 1 (CDOL1)
+    teCDOL2,              // 8D   Card Risk Management Data Object List 2 (CDOL2)
     teFCIIDD,             // BF0C File Control Information (FCI) Issuer Discretionary Data
     teAppTemplate,        // 61   Application Template
     teRespTmplF1,         // 80   Response Message Template Format 1
@@ -71,6 +73,7 @@ type
 
     function SetTagValue(Tag, Value: AnsiString): boolean;
     function Deserialize(elm: TTLV): boolean;
+    function SerializeValues: AnsiString;
     function DecodeStr(prefix: string = ''): string;
   end;
 
@@ -156,8 +159,8 @@ type
     function GetStr: string;
   end;
 
-  // 80 Response Message Template Format 1
-  tlvRespTmplF1 = packed record
+  // 80 GPO Response Message Template Format 1
+  tlvRespTmplGPO1 = packed record
     Valid: boolean;
 
     sAIP,
@@ -170,11 +173,44 @@ type
     function DecodeStr: string;
   end;
 
-  // 77 Response Message Template Format 2
-  tlvRespTmplF2 = packed record
+  // 77 GPO Response Message Template Format 2
+  tlvRespTmplGPO2 = packed record
     Valid: boolean;
 
     function Deserialize(elm: TTLV): boolean;
+  end;
+
+  recSID  = packed record
+    isAAC,
+    isTC,
+    isARQC,
+    isAAR,
+
+    AdviceRequired: boolean;
+
+    NoInformationGiven,
+    ServiceNotAllowed,
+    PINTryLimitExceeded,
+    IssuerAuthenticationFailed,
+    RFU: boolean;
+
+    procedure Clear;
+    procedure Deserialize(b: byte);
+  end;
+
+  // 80 AC Response Message Template Format 1
+  tlvRespTmplAC1 = packed record
+    Valid: boolean;
+
+    CID: recSID;
+    ATC: integer;
+    sCID,
+    sATC,
+    AC,
+    IAD: AnsiString;
+
+    function Deserialize(data: AnsiString): boolean;
+    function DecodeStr: string;
   end;
 
   // 83 Command Template
@@ -321,13 +357,16 @@ type
     AIDList: TList<tlvAppTemplate>;
     TLVSelectedApp: TTLV;
     FCIPTSelectedApp: tlvFCIPT;
-    GPORes1: tlvRespTmplF1;
-    GPORes2: tlvRespTmplF2;
+    GPORes1: tlvRespTmplGPO1;
+    GPORes2: tlvRespTmplGPO2;
     AFLList: TObjectList<TTLV>;
     DAInput: AnsiString;
 
     RandomNumber,
     PlaintextPIN: AnsiString;
+
+    CDOL1,
+    CDOL2: tlvPDOL;
 
     property SelectedAID: AnsiString read GetSelectedAID;
 
@@ -348,6 +387,9 @@ type
     function CVM: boolean;
     function GetPINTryCount: byte;
     function PlaintextPINVerify(pin: AnsiString): boolean;
+
+    function FillCDOLRecords(UseGoodTVR: boolean): boolean;
+    function AC: boolean;
 
     constructor Create(pcscC: TPCSCConnector);
     destructor Destroy; override;
@@ -489,6 +531,13 @@ begin
           if elm.vTag = tePDOL then
             if pdol.Deserialize(elm) then
               res := res + pdol.DecodeStr(StringOfChar('^', elm.Level + 2));
+          // CDOL
+          if elm.vTag = teCDOL1 then
+            if pdol.Deserialize(elm) then
+              res := res + pdol.DecodeStr(StringOfChar('^', elm.Level + 2));
+          if elm.vTag = teCDOL2 then
+            if pdol.Deserialize(elm) then
+              res := res + pdol.DecodeStr(StringOfChar('^', elm.Level + 2));
         end);
   Iterate;
 
@@ -507,6 +556,10 @@ begin
   if Tag = #$61 then Result := teAppTemplate;
   //9F38 Processing Options Data Object List (PDOL)
   if Tag = #$9F#$38 then Result := tePDOL;
+  // 8C   Card Risk Management Data Object List 1 (CDOL1)
+  if Tag = #$8C then Result := teCDOL1;
+  // 8D   Card Risk Management Data Object List 2 (CDOL2)
+  if Tag = #$8D then Result := teCDOL2;
   //80   Response Message Template Format 1
   if Tag = #$80 then Result := teRespTmplF1;
   // 77   Response Message Template Format 2
@@ -537,6 +590,85 @@ begin
 end;
 
 { TEMV }
+
+function TEMV.AC: boolean;
+var
+  sw: word;
+  ICCDynamicNumber,
+  res: AnsiString;
+  tlv: TTLV;
+  resAC: tlvRespTmplAC1;
+begin
+  Result := false;
+  AddLog('* * * Generate First AC');
+
+  AddLog('CDOL1: ');
+  AddLog(CDOL1.DecodeStr('^'));
+  AddLog('CDOL2: ');
+  AddLog(CDOL1.DecodeStr('^'));
+
+  if not CDOL1.Valid or not CDOL2.Valid then
+  begin
+    AddLog('CDOL not valid. exit.');
+    exit;
+  end;
+
+  // get random number from card
+  ICCDynamicNumber := FpcscC.GetChallenge(sw);
+  if sw <> $9000 then
+  begin
+    AddLog('Command GET CHALLENGE error: ' + IntToHex(sw, 4));
+    exit;
+  end;
+
+  if length(ICCDynamicNumber) <> 8 then exit;
+
+  // put card random into CDOL
+  CDOL1.SetTagValue(#$9F#$4C, ICCDynamicNumber);
+  CDOL2.SetTagValue(#$9F#$4C, ICCDynamicNumber);
+
+  // AC1
+  res := FpcscC.GenerateAC($40, CDOL1.SerializeValues, sw);
+  if sw <> $9000 then
+  begin
+    AddLog('Command GENERATE AC1 error: ' + IntToHex(sw, 4));
+    exit;
+  end;
+  if length(res) = 0 then exit;
+  AddLog('****' + Bin2HexExt(res, true, true));
+
+  tlv := TTLV.Create;
+  try
+    case res[1] of
+    #$80: // 80 Response Message Template Format 1
+      begin
+        resAC.Deserialize(res);
+      end;
+    #$77: // 77 Response Message Template Format 2
+      begin
+        tlv.Deserealize(res);
+        if LoggingTLV then AddLog(tlv.GetStrTree);
+
+        // TODO!!!!!
+
+      end;
+    else
+      exit;
+    end;
+  finally
+    tlv.Free;
+  end;
+
+  if not resAC.Valid then
+  begin
+    AddLog('AC response not valid. exit.');
+    exit;
+  end;
+
+
+
+  Result := true;
+end;
 
 function TEMV.AFLListGetParam(Tag: AnsiString): AnsiString;
 var
@@ -577,6 +709,9 @@ begin
 
   RandomNumber := #$01#$23#$45#$67;
   PlaintextPIN := '';
+
+  CDOL1.Valid := false;
+  CDOL2.Valid := false;
 end;
 
 constructor TEMV.Create;
@@ -820,6 +955,54 @@ begin
   TLVSelectedApp.Destroy;
   AIDList.Destroy;
   inherited;
+end;
+
+function TEMV.FillCDOLRecords(UseGoodTVR: boolean): boolean;
+var
+  elm: TTLV;
+begin
+  Result := false;
+
+  // get CDOL records
+  elm := AFLListGetTag(#$8C);
+  if elm = nil then
+  begin
+    AddLog('CDOL1 not found');
+    exit;
+  end;
+  CDOL1.Deserialize(elm);
+  if not CDOL1.Valid then
+  begin
+    AddLog('CDOL1 not valid');
+    exit;
+  end;
+
+  elm := AFLListGetTag(#$8D);
+  if elm = nil then
+  begin
+    AddLog('CDOL2 not found');
+    exit;
+  end;
+  CDOL2.Deserialize(elm);
+  if not CDOL2.Valid then
+  begin
+    AddLog('CDOL2 not valid');
+    exit;
+  end;
+
+  // make TVR
+  if UseGoodTVR then
+  begin
+    AddLog('* Use good TVR');
+
+
+  end
+  else
+  begin
+
+  end;
+
+  Result := true;
 end;
 
 procedure TEMV.GetAIDsByConstAIDList;
@@ -1437,6 +1620,17 @@ begin
   Valid := true;
 end;
 
+function tlvPDOL.SerializeValues: AnsiString;
+var
+  i: integer;
+begin
+  Result := '';
+  if not Valid then exit;
+
+  for i := 0 to length(Items) - 1 do
+    Result := Result + Items[i].SerializeValues;
+end;
+
 function tlvPDOL.SetTagValue(Tag, Value: AnsiString): boolean;
 var
   i: Integer;
@@ -1483,18 +1677,15 @@ end;
 function cmdCommandTemplate.Serialize: AnsiString;
 var
   len: byte;
-  i: Integer;
 begin
-  Result := '';
-  for i := 0 to length(PDOL.Items) - 1 do
-    Result := Result + PDOL.Items[i].SerializeValues;
+  Result := PDOL.SerializeValues;
   len := byte(length(Result));
   Result := #$83 + AnsiChar(len) + Result;
 end;
 
 { tlvRespTmplF2 }
 
-function tlvRespTmplF2.Deserialize(elm: TTLV): boolean;
+function tlvRespTmplGPO2.Deserialize(elm: TTLV): boolean;
 begin
   Result := false;
   Valid := false;
@@ -1504,7 +1695,7 @@ end;
 
 { tlvRespTmplF1 }
 
-function tlvRespTmplF1.DecodeStr: string;
+function tlvRespTmplGPO1.DecodeStr: string;
 var
   i: Integer;
 begin
@@ -1519,7 +1710,7 @@ begin
       ' offl:' + IntToStr(AFL[i].OfflineCount) + #$0D#$0A;
 end;
 
-function tlvRespTmplF1.Deserialize(data: AnsiString): boolean;
+function tlvRespTmplGPO1.Deserialize(data: AnsiString): boolean;
 var
   i: Integer;
 begin
@@ -2135,6 +2326,49 @@ begin
     Result := Result + ' NEXT'
   else
     Result := Result + ' STOP';
+end;
+
+{ tlvRespTmplAC1 }
+
+function tlvRespTmplAC1.DecodeStr: string;
+begin
+
+end;
+
+function tlvRespTmplAC1.Deserialize(data: AnsiString): boolean;
+begin
+  Result := false;
+  Valid := false;
+
+  sCID := '';
+  sATC := '';
+  AC := '';
+  IAD := '';
+
+  CID.Clear;
+  ATC := 0;
+
+  if length(data) < 11 then exit;
+
+  sCID := Copy(data, 1, 1);
+  sATC := Copy(data, 2, 2);
+  AC := Copy(data, 4, 8);
+  IAD := Copy(data, 12, length(data)); // optional
+
+  Result := true;
+  Valid := true;
+end;
+
+{ recSID }
+
+procedure recSID.Clear;
+begin
+
+end;
+
+procedure recSID.Deserialize(b: byte);
+begin
+
 end;
 
 end.
