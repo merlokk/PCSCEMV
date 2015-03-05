@@ -26,7 +26,7 @@ type
     cvcIfTransactionInAppCurrencyAndOverX, cvcIfTransactionInAppCurrencyAndUnderY, cvcIfTransactionInAppCurrencyAndOverY,
     cvcRFU, cvcRFUIndividualPayments);
 
-  ACTransactionDecision = (tdAAC, tdTC, tdARQC, tdAAR);
+  ACTransactionDecision = (tdAAC, tdTC, tdARQC, tdAAR, tdRFU, tdARQCinAC2);
   ACReasonCode = (reNoInformationGiven, reServiceNotAllowed, rePINTryLimitExceeded,
     reIssuerAuthenticationFailed, reRFU);
 
@@ -78,7 +78,9 @@ const
     'AAC (Transaction declined)',
     'TC (Transaction approved)',
     'ARQC (Online authorisation requested)',
-    'AAR (Referral requested by the card)');
+    'AAR (Referral requested by the card)',
+    'RFU',
+    'Second GENERATE AC Not Requested');
 
   ACReasonCodeStr: Array[ACReasonCode] of string = (
     'No information given',
