@@ -698,7 +698,7 @@ begin
   begin
     Result := '';
     if not GetResponseFromCard(
-          #$00#$84#$00$00 + AnsiChar(Lo(sw)), Result, sw)
+          #$00#$84#$00#$00 + AnsiChar(Lo(sw)), Result, sw)
     then
       Result := '';
   end;

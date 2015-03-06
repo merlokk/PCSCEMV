@@ -4,7 +4,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, System.AnsiStrings,
   Generics.Collections,
-  TLVsys, EMVconst, defs, PCSCConnector, Chiphers, EMVrec;
+  TLVsys, EMVconst, defs, PCSCConnector, Chiphers, EMVrec, VISAVirtualBank;
 
 const
   ConstAIDList: array of string = [
@@ -385,7 +385,7 @@ type
     function PlaintextPINVerify(pin: AnsiString): boolean;
 
     function FillCDOLRecords(UseGoodTVR: boolean): boolean;
-    function AC: boolean;
+    function AC(bank: TVirtualBank): boolean;
 
     constructor Create(pcscC: TPCSCConnector);
     destructor Destroy; override;
@@ -587,7 +587,7 @@ end;
 
 { TEMV }
 
-function TEMV.AC: boolean;
+function TEMV.AC(bank: TVirtualBank): boolean;
 var
   sw: word;
   ICCDynamicNumber,
@@ -670,7 +670,7 @@ begin
     exit;
   end;
 
-  AddLog('* * * Cryptogram verification');
+  AddLog('* * * Cryptogram verification ARQC');
 
   RawDataARQC := CDOL1.SerializeValues + GPORes1.sAIP + resAC.sATC;
   if resAC.sIAD <> '' then RawDataARQC := RawDataARQC + Copy(resAC.sIAD, 2, length(resAC.sIAD));
@@ -685,7 +685,7 @@ begin
   begin
     AddLog('* * * Cryptogram verification failed');
     exit;
-  end;            }
+  end;
 
   case resAC.CID.ACT of
     tdAAC:
@@ -699,6 +699,10 @@ begin
         exit;
       end;
   end;
+
+  // ARPC here
+
+  // external authenticate here
 
   // IT needs to send AC2 command
   if resAC.CID.ACT = tdARQC then

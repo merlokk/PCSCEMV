@@ -18,7 +18,30 @@ type
   end;
 
 const
-  VSDCPublicKeys: array [0..2] of TVSDCPublicKey = (
+  VSDCPublicKeys: array [0..3] of TVSDCPublicKey = (
+    // 1. VSDC CA Production Public Keys
+
+    // The 1408-bit VSDC CA Production Public Key is currently considered to have an anticipated lifetime
+    // to at least 31 December 2024
+   (RID:'A0 00 00 00 03';
+   Index:$08;
+   Modulus: 'D9 FD 6E D7 5D 51 D0 E3 06 64 BD 15 70 23 EA A1' +
+            'FF A8 71 E4 DA 65 67 2B 86 3D 25 5E 81 E1 37 A5' +
+            '1D E4 F7 2B CC 9E 44 AC E1 21 27 F8 7E 26 3D 3A' +
+            'F9 DD 9C F3 5C A4 A7 B0 1E 90 70 00 BA 85 D2 49' +
+            '54 C2 FC A3 07 48 25 DD D4 C0 C8 F1 86 CB 02 0F' +
+            '68 3E 02 F2 DE AD 39 69 13 3F 06 F7 84 51 66 AC' +
+            'EB 57 CA 0F C2 60 34 45 46 98 11 D2 93 BF EF BA' +
+            'FA B5 76 31 B3 DD 91 E7 96 BF 85 0A 25 01 2F 1A' +
+            'E3 8F 05 AA 5C 4D 6D 03 B1 DC 2E 56 86 12 78 59' +
+            '38 BB C9 B3 CD 3A 91 0C 1D A5 5A 5A 92 18 AC E0' +
+            'F7 A2 12 87 75 26 82 F1 58 32 A6 78 D6 E1 ED 0B';
+   Exponent: '03';
+   Hash: '20 D2 13 12 69 55 DE 20 5A DC 2F D2 82 2B D2 2D' +
+         'E2 1C F9 A8';
+   ),
+
+
     // 2. VSDC CA Public Test Keys
 
    // Table 2–1: 1152-Bit VSDC CA Public Test Key
