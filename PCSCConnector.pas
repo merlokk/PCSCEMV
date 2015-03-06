@@ -158,6 +158,7 @@ type
     function    ReadSFIRecord(sfi, rnum: byte; var sw: Word): AnsiString;
     function    GetData(id: AnsiString; var sw: Word): AnsiString;
     function    InternalAuthenticate(data: AnsiString; var sw: Word): AnsiString;
+    function    ExternalAuthenticate(data: AnsiString; var sw: Word): AnsiString;
     function    VerifyPIN(data: AnsiString; refdata: byte;var sw: Word): AnsiString;
     function    GetChallenge(var sw: Word): AnsiString;
     function    GenerateAC(RefControl: byte; data: AnsiString; var sw: Word): AnsiString;
@@ -420,6 +421,21 @@ begin
     FConnected  := false;
     FCardHandle := 0;
     end;
+end;
+
+function TPCSCConnector.ExternalAuthenticate(data: AnsiString;
+  var sw: Word): AnsiString;
+var
+  len: integer;
+begin
+  Result := '';
+  len := length(data);
+  if len > $FF then exit;
+
+  Result := data;
+  if not GetResponseFromCard(#$00#$82#$00#$00 + AnsiChar(len), Result, sw)
+  then
+    Result := '';
 end;
 
 procedure TPCSCConnector.CloseAndDisconnect;

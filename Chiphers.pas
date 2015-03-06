@@ -25,6 +25,7 @@ type
 
     // DES_MAC_EMV | Retail MAC algorithm | ISO 9797-1 Algorithm 3
     class function DesMACEmv(data, Key: AnsiString): AnsiString;
+    class function DesECBEncode(data, Key: AnsiString): AnsiString;
 
     class function SHA1Hash(data: AnsiString): AnsiString;
   end;
@@ -34,6 +35,60 @@ implementation
 { TChipher }
 
 // http://en.wikipedia.org/wiki/ISO/IEC_9797-1#MAC_algorithm_3
+class function TChipher.DesECBEncode(data, Key: AnsiString): AnsiString;
+var
+  i,
+  indx       : Longint;
+  Block      : TDESBlock;
+  Context    : TTripleDESContext;
+  DKey       : TKey128;
+  BlockCount : LongInt;
+  OddCount   : Byte;
+  res: AnsiString;
+begin
+  Result := '';
+
+  if Length(Key) <> SizeOf(DKey) then exit;
+
+  Move(Key[1], DKey[0], SizeOf(DKey));
+  InitEncryptTripleDES(DKey, Context, true);
+
+  {get the number of blocks in the file}
+  BlockCount := (length(data) div SizeOf(Block));
+  OddCount := length(data) mod SizeOf(Block);
+
+  { get number of bytes to pad at the end }
+  if (OddCount > 0) then
+    Inc(BlockCount)
+  else
+    OddCount := 8;
+
+  indx := 1;
+  {process all except the last block}
+  for I := 1 to BlockCount - 1 do
+  begin
+    Move(data[indx], Block[0], SizeOf(Block));
+    indx := indx + SizeOf(Block);
+
+    EncryptTripleDES(Context, Block);
+
+    SetLength(res, SizeOf(Block));
+    Move(Block[0], res[1], SizeOf(Block));
+    Result := Result + res;
+  end;
+
+  { process the last block }
+  FillChar(Block, SizeOf(Block), #0);
+  Move(data[indx], Block[0], OddCount);
+
+  {encrypt and save full block}
+  EncryptTripleDES(Context, Block);
+
+  SetLength(res, SizeOf(Block));
+  Move(Block[0], res[1], SizeOf(Block));
+  Result := Result + res;
+end;
+
 class function TChipher.DesMACEmv(data, Key: AnsiString): AnsiString;
 var
   i,
@@ -43,7 +98,6 @@ var
   Context    : TTripleDESContext;
   DKey       : TKey128;
   BlockCount : LongInt;
-  PadCount   : Byte;
   OddCount   : Byte;
 begin
   Result := '';
@@ -62,15 +116,9 @@ begin
 
   { get number of bytes to pad at the end }
   if (OddCount > 0) then
-  begin
-    PadCount := SizeOf(Block) - OddCount;
-    Inc(BlockCount);
-  end
+    Inc(BlockCount)
   else
-  begin
-    PadCount := 0;
     OddCount := 8;
-  end;
 
   indx := 1;
   {process all except the last block}
@@ -87,11 +135,6 @@ begin
   { process the last block }
   FillChar(Block, SizeOf(Block), #0);
   Move(data[indx], Block[0], OddCount);
-
-  { pad the remaining bytes in the block }
-{  if (OddCount > 0) then
-    for i := OddCount to SizeOf(Block) - 1 do
-      Block[i] := PadCount; // PADDING!!!!!!             }
 
   {encrypt and save full block}
   EncryptTripleDESCBC(Context, PrevBlock, Block);

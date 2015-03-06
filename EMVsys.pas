@@ -590,12 +590,15 @@ end;
 function TEMV.AC(bank: TVirtualBank): boolean;
 var
   sw: word;
+  ARC,
   ICCDynamicNumber,
   RawDataARQC,
+  RawDataARPC,
   res: AnsiString;
   tlv: TTLV;
   resAC: tlvRespTmplAC1;
   sid: rSID;
+  i: Integer;
 begin
   Result := false;
   AddLog('* * * Generate First AC');
@@ -682,14 +685,52 @@ begin
            RawDataARQC);
   AddLog('Hash raw ARQC: ' + Bin2HexExt(res, true, true));
   if res = resAC.AC then
-    AddLog('* * * Cryptogram verification passed')
+    AddLog('Cryptogram verification passed')
   else
   begin
-    AddLog('* * * Cryptogram verification failed');
+    AddLog('Cryptogram verification failed');
     exit;
   end;
 
-  AddLog('* * * External athenticate');
+  AddLog('');
+  AddLog('* * * Processing online request');
+  AddLog('');
+
+  // Authorisation Response Code
+  ARC := #$30#$30;
+  AddLog('* * * Host Response: ' + Bin2HexExt(ARC, false, true));
+
+  RawDataARPC := resAC.AC;
+  for i := 1 to length(RawDataARPC) do
+  begin
+    RawDataARPC[i] := AnsiChar(byte(RawDataARPC[i]) xor byte(ARC[i]));
+    if i >= length(ARC) then break;
+  end;
+
+  AddLog('Raw ARPC: ' + Bin2HexExt(RawDataARPC, true, true));
+
+  res := bank.CalculateARPC(
+           AFLListGetParam(#$5A),     // PAN
+           AFLListGetParam(#$5F#$34), // PAN Sequence Number
+           RawDataARPC);
+
+  res := res + ARC;
+  AddLog('ARPC: ' + Bin2HexExt(res, true, true));
+
+  if GPORes1.AIP.IssuerAuthenticationSupported then
+  begin
+    AddLog('* * * External athenticate');
+    FpcscC.ExternalAuthenticate(res, sw);
+    if sw <> $9000 then
+    begin
+      AddLog('External athenticate error: ' + IntToHex(sw, 4));
+      exit;
+    end
+    else
+      AddLog('External athenticate OK');
+  end
+  else
+    AddLog('* External athenticate not supported according to AIP');
 
 
   case resAC.CID.ACT of
@@ -704,10 +745,6 @@ begin
         exit;
       end;
   end;
-
-  // ARPC here
-
-  // external authenticate here
 
   // IT needs to send AC2 command
   if resAC.CID.ACT = tdARQC then

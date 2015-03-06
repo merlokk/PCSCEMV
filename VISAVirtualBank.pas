@@ -21,6 +21,7 @@ type
     function GetUDK(PAN, PANSeq: AnsiString; KeyType: TKeyType): AnsiString;
 
     function CalculateARQC(PAN, PANSequence, RawData: AnsiString): AnsiString;
+    function CalculateARPC(PAN, PANSequence, RawData: AnsiString): AnsiString;
 
     constructor Create;
     destructor Destroy; override;
@@ -35,6 +36,19 @@ const
 implementation
 
 { TVirtualBank }
+
+function TVirtualBank.CalculateARPC(PAN, PANSequence,
+  RawData: AnsiString): AnsiString;
+var
+  UDKENC: AnsiString;
+begin
+  Result := '';
+
+  UDKENC := GetUDK(PAN, PANSequence, ktENC);
+  if UDKENC = '' then exit;
+
+  Result := TChipher.DesECBEncode(RawData, UDKENC);
+end;
 
 function TVirtualBank.CalculateARQC(PAN, PANSequence,
   RawData: AnsiString): AnsiString;
