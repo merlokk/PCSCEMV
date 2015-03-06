@@ -23,7 +23,9 @@ uses
   LbConst in 'lockbox2\LbConst.pas',
   LbAsym in 'lockbox2\LbAsym.pas',
   LbClass in 'lockbox2\LbClass.pas',
-  LbProc in 'lockbox2\LbProc.pas';
+  LbProc in 'lockbox2\LbProc.pas',
+  EMVRec in 'EMVRec.pas',
+  VISAVirtualBank in 'VISAVirtualBank.pas';
 
 {$R *.res}
 

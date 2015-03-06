@@ -5,7 +5,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.StdCtrls,
-  defs, PCSCConnector, CardUtils, EMVsys, EMVConst;
+  defs, PCSCConnector, CardUtils, EMVsys, EMVConst, VISAVirtualBank;
 
 type
   TForm1 = class(TForm)
@@ -80,6 +80,7 @@ var
   Result: boolean;
   i: Integer;
   emv: TEMV;
+  bank: TVirtualBank;
 begin
   try
     if cbReaders.ItemIndex < 0 then exit;
@@ -199,7 +200,7 @@ begin
      else
        AddLog('* DDA is not supported according to AIP');
 
-    emv.PlaintextPIN := edPIN.Text;
+    emv.PlaintextPIN := AnsiString(edPIN.Text);
     emv.VerifyPIN := cbVerifyPIN.Checked;
     if not emv.CVM then exit;
 
@@ -234,7 +235,9 @@ begin
     emv.CDOL2.SetTagValue(#$9F#$37, emv.AFLListGetParam(#$9F#$45));
 
     // AC
-    if not emv.AC then exit;
+    bank := TVirtualBank.Create;
+    if not emv.AC(bank) then exit;
+    bank.Free;
 
 
     finally
