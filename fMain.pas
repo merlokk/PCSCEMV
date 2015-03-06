@@ -5,7 +5,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.StdCtrls,
-  defs, PCSCConnector, CardUtils, EMVsys, EMVConst, VISAVirtualBank;
+  defs, PCSCConnector, CardUtils, EMVsys, EMVConst, VISAVirtualBank, Chiphers;
 
 type
   TForm1 = class(TForm)
@@ -21,9 +21,11 @@ type
     cbVerifyPIN: TCheckBox;
     edPIN: TEdit;
     Label2: TLabel;
+    Button2: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure btRefreshClick(Sender: TObject);
+    procedure Button2Click(Sender: TObject);
   private
     { Private declarations }
 
@@ -252,6 +254,15 @@ begin
 
   except
   end;
+end;
+
+procedure TForm1.Button2Click(Sender: TObject);
+begin
+  Memo1.Lines.Add('hash:' + Bin2HexExt(
+  TChipher.DesMACEmv(
+    Hex2Bin(''),
+    Hex2Bin('')), false, true));
+  Memo1.Lines.Add('expected: ')
 end;
 
 procedure TForm1.ClearLog;

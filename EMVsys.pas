@@ -673,13 +673,14 @@ begin
   AddLog('* * * Cryptogram verification ARQC');
 
   RawDataARQC := CDOL1.SerializeValues + GPORes1.sAIP + resAC.sATC;
+  if resAC.sIAD <> '' then RawDataARQC := RawDataARQC + Copy(resAC.sIAD, 4, length(resAC.sIAD));
   AddLog('Raw ARQC: ' + Bin2HexExt(RawDataARQC, true, true));
-  if resAC.sIAD <> '' then RawDataARQC := RawDataARQC + Copy(resAC.sIAD, 2, length(resAC.sIAD));
 
   res := bank.CalculateARQC(
            AFLListGetParam(#$5A),     // PAN
            AFLListGetParam(#$5F#$34), // PAN Sequence Number
            RawDataARQC);
+  AddLog('Hash raw ARQC: ' + Bin2HexExt(res, true, true));
   if res = resAC.AC then
     AddLog('* * * Cryptogram verification passed')
   else

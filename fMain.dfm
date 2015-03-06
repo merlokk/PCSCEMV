@@ -105,6 +105,15 @@ object Form1: TForm1
       TabOrder = 7
       Text = '1234'
     end
+    object Button2: TButton
+      Left = 904
+      Top = 64
+      Width = 75
+      Height = 25
+      Caption = 'Button2'
+      TabOrder = 8
+      OnClick = Button2Click
+    end
   end
   object Memo1: TMemo
     Left = 0
