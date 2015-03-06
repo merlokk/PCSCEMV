@@ -23,12 +23,82 @@ type
     class function RSADecode(data: AnsiString; PublicKey: TRSAPublicKey): AnsiString;
     class function RSAEncode(data, PrivateKey: AnsiString): AnsiString;
 
+    // DES_MAC_EMV | Retail MAC algorithm | ISO 9797-1 Algorithm 3
+    class function DesMACEmv(data, Key: AnsiString): AnsiString;
+
     class function SHA1Hash(data: AnsiString): AnsiString;
   end;
 
 implementation
 
 { TChipher }
+
+// http://en.wikipedia.org/wiki/ISO/IEC_9797-1#MAC_algorithm_3
+class function TChipher.DesMACEmv(data, Key: AnsiString): AnsiString;
+var
+  i,
+  indx       : Longint;
+  Block      : TDESBlock;
+  PrevBlock  : TDESBlock;
+  Context    : TTripleDESContext;
+  DKey       : TKey128;
+  BlockCount : LongInt;
+  PadCount   : Byte;
+  OddCount   : Byte;
+begin
+  Result := '';
+
+  if Length(Key) <> SizeOf(DKey) then exit;
+
+  Move(Key[1], DKey[0], SizeOf(DKey));
+  InitEncryptTripleDES(DKey, Context, true);
+
+  {get the number of blocks in the file}
+  BlockCount := (length(data) div SizeOf(Block));
+  OddCount := length(data) mod SizeOf(Block);
+
+  { initialization vector }
+  FillChar(PrevBlock, SizeOf(PrevBlock), #0);
+
+  { get number of bytes to pad at the end }
+  if (OddCount > 0) then
+  begin
+    PadCount := SizeOf(Block) - OddCount;
+    Inc(BlockCount);
+  end
+  else
+  begin
+    PadCount := 0;
+    OddCount := 8;
+  end;
+
+  indx := 1;
+  {process all except the last block}
+  for I := 1 to BlockCount - 1 do
+  begin
+    Move(data[indx], Block[0], SizeOf(Block));
+    indx := indx + SizeOf(Block);
+
+    EncryptDESCBC(Context[0], PrevBlock, Block);
+
+    PrevBlock := Block;
+  end;
+
+  { process the last block }
+  FillChar(Block, SizeOf(Block), #0);
+  Move(data[indx], Block[0], OddCount);
+
+  { pad the remaining bytes in the block }
+{  if (OddCount > 0) then
+    for i := OddCount to SizeOf(Block) - 1 do
+      Block[i] := PadCount; // PADDING!!!!!!             }
+
+  {encrypt and save full block}
+  EncryptTripleDESCBC(Context, PrevBlock, Block);
+
+  SetLength(Result, SizeOf(Block));
+  Move(Block[0], Result[1], SizeOf(Block));
+end;
 
 class function TChipher.RSADecode(data: AnsiString; PublicKey: TRSAPublicKey): AnsiString;
 var

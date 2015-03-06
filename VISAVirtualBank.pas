@@ -46,8 +46,7 @@ begin
   UDKMAC := GetUDK(PAN, PANSequence, ktMAC);
   if UDKMAC = '' then exit;
 
- // chipher.desmac
-
+  Result := TChipher.DesMACEmv(RawData, UDKMAC);
 end;
 
 constructor TVirtualBank.Create;
@@ -100,7 +99,7 @@ begin
       key := Copy(key, 1, length(sl[i]));
       if sl[i] = key then
       begin
-        Result := ReadString(sl[i], 'UDK' + KeyTypeFileKey[KeyType], '');
+        Result := Hex2Bin(ReadString(sl[i], 'UDK' + KeyTypeFileKey[KeyType], ''));
         exit;
       end;
     end;
