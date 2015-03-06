@@ -687,6 +687,9 @@ begin
     exit;
   end;
 
+  AddLog('* * * External athenticate');
+
+
   case resAC.CID.ACT of
     tdAAC:
       begin
