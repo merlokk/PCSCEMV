@@ -233,8 +233,16 @@ begin
     emv.CDOL1.SetTagValue(#$9F#$37, emv.RandomNumber);
     emv.CDOL2.SetTagValue(#$9F#$37, emv.RandomNumber);
     // 9f45 Data Authentication Code
-    emv.CDOL1.SetTagValue(#$9F#$45, emv.AFLListGetParam(#$9F#$45));
-    emv.CDOL2.SetTagValue(#$9F#$45, emv.AFLListGetParam(#$9F#$45));
+    if emv.DataAuthCode9F45 <> '' then
+    begin
+      emv.CDOL1.SetTagValue(#$9F#$45, emv.DataAuthCode9F45);
+      emv.CDOL2.SetTagValue(#$9F#$45, emv.DataAuthCode9F45);
+    end
+    else
+    begin
+      emv.CDOL1.SetTagValue(#$9F#$45, emv.AFLListGetParam(#$9F#$45));
+      emv.CDOL2.SetTagValue(#$9F#$45, emv.AFLListGetParam(#$9F#$45));
+    end;
 
     // AC
     bank := TVirtualBank.Create;

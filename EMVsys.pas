@@ -245,10 +245,15 @@ type
   certSignedStaticAppData = packed record
     Raw: AnsiString;
 
-    HashAlgorithmId,
+    HashAlgorithmId: byte;
     DataAuthenticationCode,
     PadPattern,
     Hash: AnsiString;
+
+    // parameters!
+    CKeySize: Integer;
+    CSDATagList,
+    CDAinput: AnsiString;
 
     procedure Clear;
     function Deserialize(s: AnsiString): boolean;
@@ -357,6 +362,7 @@ type
     GPORes2: tlvRespTmplGPO2;
     AFLList: TObjectList<TTLV>;
     DAInput: AnsiString;
+    DataAuthCode9F45: AnsiString;
 
     RandomNumber,
     PlaintextPIN: AnsiString;
@@ -377,6 +383,7 @@ type
 
     function AFLListGetParam(Tag: AnsiString): AnsiString;
     function AFLListGetTag(Tag: AnsiString): TTLV;
+    function GetStaticDataAuthTagList: AnsiString;
     function SDA: boolean;
     function DDA: boolean;
 
@@ -603,7 +610,7 @@ begin
 
   // AC1
   sid.Clear;
-  sid.ACT := tdTC; // request for offline transaction
+  sid.ACT := tdARQC; // request for offline transaction
 
   // AC plus crypto check
   if not GenerateAC(sid, true, bank, resAC) then exit;
@@ -709,12 +716,28 @@ begin
   GPORes2.Valid := false;
   AFLList.Clear;
   DAInput := '';
+  DataAuthCode9F45 := '';
 
   RandomNumber := #$01#$23#$45#$67;
   PlaintextPIN := '';
 
   CDOL1.Valid := false;
   CDOL2.Valid := false;
+end;
+
+function TEMV.GetStaticDataAuthTagList: AnsiString;
+var
+  SDATagList: tlvSDATagList;
+  i: Integer;
+begin
+  Result := '';
+  SDATagList.Deserialize(AFLListGetTag(#$9F#$4A));
+  if SDATagList.Valid then
+    for i := 0 to length(SDATagList.Items) - 1 do
+      if SDATagList.Items[i] <> #$82 then
+        Result := Result + AFLListGetParam(SDATagList.Items[i])
+      else
+        Result := Result + GPORes1.sAIP;
 end;
 
 constructor TEMV.Create;
@@ -809,6 +832,7 @@ var
   i: Integer;
 begin
   Result := false;
+  AddLog('');
   AddLog('* DDA');
   if FSelectedAID = '' then exit;
 
@@ -861,16 +885,8 @@ begin
   CertICC.CKeySize := IssuerPublicKey.Size;
   CertICC.CRemainder := AFLListGetParam(#$9F#$48);
   CertICC.CExponent := AFLListGetParam(#$9F#$47);
-
   // get 9F4A Static Data Authentication Tag List
-  CertICC.CSDATagList := '';
-  SDATagList.Deserialize(AFLListGetTag(#$9F#$4A));
-  if SDATagList.Valid then
-    for i := 0 to length(SDATagList.Items) - 1 do
-      if SDATagList.Items[i] <> #$82 then
-        CertICC.CSDATagList := CertICC.CSDATagList + AFLListGetParam(SDATagList.Items[i])
-      else
-        CertICC.CSDATagList := CertICC.CSDATagList + GPORes1.sAIP;
+  CertICC.CSDATagList := GetStaticDataAuthTagList;
 
   CertICC.CPAN := AFLListGetParam(#$5A);
   CertICC.CDAinput := DAInput;
@@ -1484,6 +1500,7 @@ end;
 
 function TEMV.SDA: boolean;
 var
+  IssuerPublicKey,
   PublicKey: TRSAPublicKey;
   PubKeyIndx,
   Certificate,
@@ -1492,8 +1509,11 @@ var
   CertApp: certSignedStaticAppData;
 begin
   Result := false;
+  AddLog('');
   AddLog('* SDA');
   if FSelectedAID = '' then exit;
+
+  DataAuthCode9F45 := '';
 
   PubKeyIndx := AFLListGetParam(#$8F);
   if length(PubKeyIndx) <> 1 then exit;
@@ -1528,6 +1548,10 @@ begin
   else
     AddLog('Issuer Public Key Certificate OK');
 
+  IssuerPublicKey.Clear;
+  IssuerPublicKey.Exponent := CertIs.CExponent;
+  IssuerPublicKey.Modulus := CertIs.IssuerPublicKey;
+
   // Verification of Signed Static Application Data
   Certificate := AFLListGetParam(#$93);
   if Certificate = '' then
@@ -1535,11 +1559,15 @@ begin
     AddLog('0x93 Signed Static Application Data not found!');
     exit;
   end;
-// @@@@ NOT TESTED!!!!!!
-  DecrCertificate := Certificate;
-//  DecrCertificate := TChipher.RSADecode(Certificate, KEY);
+  DecrCertificate := TChipher.RSADecode(Certificate, IssuerPublicKey);
 
   // check certificate
+
+  // get 9F4A Static Data Authentication Tag List
+  CertApp.CSDATagList := GetStaticDataAuthTagList;
+
+  CertApp.CDAinput := DAInput;
+  CertApp.CKeySize := IssuerPublicKey.Size;
   if not CertApp.Deserialize(DecrCertificate) then
   begin
     AddLog('Signed Static Application Data error');
@@ -1547,6 +1575,8 @@ begin
   end
   else
     AddLog('Signed Static Application Data OK');
+
+  DataAuthCode9F45 := CertApp.DataAuthenticationCode;
 
   Result := true;
 end;
@@ -2073,7 +2103,7 @@ procedure certSignedStaticAppData.Clear;
 begin
   Raw := '';
 
-  HashAlgorithmId := '';
+  HashAlgorithmId := 0;
   DataAuthenticationCode := '';
   PadPattern := '';
   Hash := '';
@@ -2082,6 +2112,7 @@ end;
 function certSignedStaticAppData.Deserialize(s: AnsiString): boolean;
 var
   len: integer;
+  pk: AnsiString;
 begin
   Result := false;
   Clear;
@@ -2091,14 +2122,16 @@ begin
      (s[length(s)] <> #$BC)
   then exit;
 
-  len := length(s) - 26;  //   @@@@  NOT TESTED!!!
-  HashAlgorithmId := s[3];
+  len := length(s) - 26;
+  HashAlgorithmId := byte(s[3]);
   DataAuthenticationCode := Copy(s, 4, 2);
   PadPattern := Copy(s, 6, len);
   Hash := Copy(s, 6 + len, 20);
 
+  Raw := s;
 
 	// Step 1: Signed Static Application Data and Issuer Public Key Modulus have the same length
+	if length(Raw) <> CKeySize then exit;
 
 	// Step 2: The Recovered Data Trailer is equal to 'BC'
 	if Raw[length(Raw)] <> #$BC then exit;
@@ -2109,15 +2142,22 @@ begin
 	// Step 4: The Signed Data Format is equal to '03'
 	if Raw[2] <> #$03 then exit;
 
+  // hash is SHA-1
+  if HashAlgorithmId <> 1 then exit;
+
+  // pad pattern
+  if PadPattern <> AnsiString(StringOfChar(#$BB, length(PadPattern))) then exit;
+
 	// Step 5: Concatenation of Signed Data Format, Hash Algorithm Indicator, Data Authentication Code, Pad Pattern,
 	//         the data listed by the AFL and finally the SDA Tag List
+  pk := Copy(Raw, 2, 4 + len) + CDAinput + CSDATagList;
 
 	// Step 6: Generate hash from concatenation
+  pk := TChipher.SHA1Hash(pk);
 
 	// Step 7: Compare recovered hash with generated hash. Store the Data Authentication Code from SSAD in tag '9F45'
+  if pk <> Hash then exit;
 
-
-  Raw := s;
   Result := true;
 end;
 
