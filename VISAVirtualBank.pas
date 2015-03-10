@@ -47,7 +47,7 @@ begin
   UDKENC := GetUDK(PAN, PANSequence, ktENC);
   if UDKENC = '' then exit;
 
-  Result := TChipher.DesECBEncode(RawData, UDKENC);
+  Result := TChipher.TripleDesECBEncode(RawData, UDKENC);
 end;
 
 function TVirtualBank.CalculateARQC(PAN, PANSequence,
@@ -85,15 +85,53 @@ end;
 { TKeyStorage }
 
 class function TKeyStorage.DeriveKey(MDK, PAN, PANSeq: AnsiString): AnsiString;
+var
+  UDKA,
+  UDKB: AnsiString;
+  i: integer;
 begin
   Result := '';
 
+  UDKA := PAN + PANSeq;
+
+  if length(UDKA) > 8 then
+    UDKA := Copy(UDKA, 1 + (length(UDKA) - 8), length(UDKA));
+  if length(UDKA) < 8 then
+    UDKA := UDKA + StringOfChar(#0, 8 - length(UDKA));
+
+  UDKB := UDKA;
+
+  for i := 1 to length(UDKB) do
+    UDKB[i] := AnsiChar(byte(UDKB[i]) xor $FF);
+
+  Result := TChipher.TripleDesECBEncode(UDKA + UDKB, MDK);
 end;
 
 class function TKeyStorage.GetMDKKey(PAN: AnsiString;
   KeyType: TKeyType): AnsiString;
+var
+  sl: TStringList;
+  i: integer;
+  key: string;
 begin
-
+  sl := TStringList.Create;
+  with TIniFile.Create(ExtractFilePath(Application.ExeName) + 'keys.ini') do
+  try
+    ReadSections(sl);
+    for i := 0 to sl.Count - 1 do
+    begin
+      key := Bin2HexExt(PAN, false, false);
+      key := Copy(key, 1, length(sl[i]));
+      if sl[i] = key then
+      begin
+        Result := Hex2Bin(ReadString(sl[i], 'MDK' + KeyTypeFileKey[KeyType], ''));
+        exit;
+      end;
+    end;
+  finally
+    Free;
+    sl.Free;
+  end;
 end;
 
 class function TKeyStorage.GetUDKKey(PAN: AnsiString;

@@ -25,7 +25,7 @@ type
 
     // DES_MAC_EMV | Retail MAC algorithm | ISO 9797-1 Algorithm 3
     class function DesMACEmv(data, Key: AnsiString): AnsiString;
-    class function DesECBEncode(data, Key: AnsiString): AnsiString;
+    class function TripleDesECBEncode(data, Key: AnsiString): AnsiString;
 
     class function SHA1Hash(data: AnsiString): AnsiString;
   end;
@@ -35,7 +35,7 @@ implementation
 { TChipher }
 
 // http://en.wikipedia.org/wiki/ISO/IEC_9797-1#MAC_algorithm_3
-class function TChipher.DesECBEncode(data, Key: AnsiString): AnsiString;
+class function TChipher.TripleDesECBEncode(data, Key: AnsiString): AnsiString;
 var
   i,
   indx       : Longint;
