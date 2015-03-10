@@ -226,15 +226,15 @@ begin
     //9A:(Transaction Date) len:3
     emv.CDOL1.SetTagValue(#$9A, #$00#$00#$00);
     emv.CDOL2.SetTagValue(#$9A, #$00#$00#$00);
-    //9C:(Transaction Type) len:1
+    //9C:(Transaction Type) len:1   |  00 => Goods and service #01 => Cash
     emv.CDOL1.SetTagValue(#$9C, #$00);
     emv.CDOL2.SetTagValue(#$9C, #$00);
     //9F37:(Unpredictable Number) len:4
     emv.CDOL1.SetTagValue(#$9F#$37, emv.RandomNumber);
     emv.CDOL2.SetTagValue(#$9F#$37, emv.RandomNumber);
     // 9f45 Data Authentication Code
-    emv.CDOL1.SetTagValue(#$9F#$37, emv.AFLListGetParam(#$9F#$45));
-    emv.CDOL2.SetTagValue(#$9F#$37, emv.AFLListGetParam(#$9F#$45));
+    emv.CDOL1.SetTagValue(#$9F#$45, emv.AFLListGetParam(#$9F#$45));
+    emv.CDOL2.SetTagValue(#$9F#$45, emv.AFLListGetParam(#$9F#$45));
 
     // AC
     bank := TVirtualBank.Create;

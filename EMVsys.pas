@@ -386,6 +386,7 @@ type
 
     function FillCDOLRecords(UseGoodTVR: boolean): boolean;
     function AC(bank: TVirtualBank): boolean;
+    function GenerateAC(sid: rSID; FirstAC: boolean; bank: TVirtualBank; var resAC: tlvRespTmplAC1): boolean;
 
     constructor Create(pcscC: TPCSCConnector);
     destructor Destroy; override;
@@ -591,106 +592,21 @@ function TEMV.AC(bank: TVirtualBank): boolean;
 var
   sw: word;
   ARC,
-  ICCDynamicNumber,
-  RawDataARQC,
   RawDataARPC,
   res: AnsiString;
-  tlv: TTLV;
-  resAC: tlvRespTmplAC1;
   sid: rSID;
   i: Integer;
+  resAC: tlvRespTmplAC1;
 begin
   Result := false;
   AddLog('* * * Generate First AC');
-
-  // get random number from card
-  ICCDynamicNumber := FpcscC.GetChallenge(sw);
-  if sw <> $9000 then
-  begin
-    AddLog('Command GET CHALLENGE error: ' + IntToHex(sw, 4));
-    exit;
-  end;
-
-  if length(ICCDynamicNumber) <> 8 then exit;
-
-  // put card random into CDOL
-  CDOL1.SetTagValue(#$9F#$4C, ICCDynamicNumber);
-  CDOL2.SetTagValue(#$9F#$4C, ICCDynamicNumber);
-
-  // CDOL logging
-  AddLog('CDOL1: ');
-  AddLog(CDOL1.DecodeStr('^'));
-  AddLog('CDOL2: ');
-  AddLog(CDOL2.DecodeStr('^'));
-
-  if not CDOL1.Valid or not CDOL2.Valid then
-  begin
-    AddLog('CDOL not valid. exit.');
-    exit;
-  end;
 
   // AC1
   sid.Clear;
   sid.ACT := tdTC; // request for offline transaction
 
-  AddLog('GENERATE AC1 APDU');
-  res := FpcscC.GenerateAC(sid.Serialize, CDOL1.SerializeValues, sw);
-  if sw <> $9000 then
-  begin
-    AddLog('Command GENERATE AC1 error: ' + IntToHex(sw, 4));
-    exit;
-  end;
-  if length(res) = 0 then exit;
-  AddLog('****' + Bin2HexExt(res, true, true));
-
-  tlv := TTLV.Create;
-  try
-    case res[1] of
-    #$80: // 80 Response Message Template Format 1
-      begin
-        tlv.Deserealize(res);
-        resAC.Deserialize(tlv.Value);
-        if LoggingTLV then AddLog(resAC.DecodeStr);
-      end;
-    #$77: // 77 Response Message Template Format 2
-      begin
-        tlv.Deserealize(res);
-        if LoggingTLV then AddLog(tlv.GetStrTree);
-
-        // TODO!!!!!
-
-      end;
-    else
-      exit;
-    end;
-  finally
-    tlv.Free;
-  end;
-
-  if not resAC.Valid then
-  begin
-    AddLog('AC response not valid. exit.');
-    exit;
-  end;
-
-  AddLog('* * * Cryptogram verification ARQC');
-
-  RawDataARQC := CDOL1.SerializeValues + GPORes1.sAIP + resAC.sATC;
-  if resAC.sIAD <> '' then RawDataARQC := RawDataARQC + Copy(resAC.sIAD, 4, length(resAC.sIAD));
-  AddLog('Raw ARQC: ' + Bin2HexExt(RawDataARQC, true, true));
-
-  res := bank.CalculateARQC(
-           AFLListGetParam(#$5A),     // PAN
-           AFLListGetParam(#$5F#$34), // PAN Sequence Number
-           RawDataARQC);
-  AddLog('Hash raw ARQC: ' + Bin2HexExt(res, true, true));
-  if res = resAC.AC then
-    AddLog('Cryptogram verification passed')
-  else
-  begin
-    AddLog('Cryptogram verification failed');
-    exit;
-  end;
+  // AC plus crypto check
+  if not GenerateAC(sid, true, bank, resAC) then exit;
 
   AddLog('');
   AddLog('* * * Processing online request');
@@ -714,55 +630,44 @@ begin
            AFLListGetParam(#$5F#$34), // PAN Sequence Number
            RawDataARPC);
 
+  if res = '' then
+  begin
+    AddLog('ARPC creation failed.');
+    exit;
+  end;
+
   res := res + ARC;
   AddLog('ARPC: ' + Bin2HexExt(res, true, true));
-
-  if GPORes1.AIP.IssuerAuthenticationSupported then
-  begin
-    AddLog('* * * External athenticate');
-    FpcscC.ExternalAuthenticate(res, sw);
-    if sw <> $9000 then
-    begin
-      AddLog('External athenticate error: ' + IntToHex(sw, 4));
-      exit;
-    end
-    else
-      AddLog('External athenticate OK');
-  end
-  else
-    AddLog('* External athenticate not supported according to AIP');
-
-
-  case resAC.CID.ACT of
-    tdAAC:
-      begin
-        AddLog('Transaction declined.');
-        exit;
-      end;
-    tdTC:
-      begin
-        AddLog('Transaction approved offline.');
-        exit;
-      end;
-  end;
 
   // IT needs to send AC2 command
   if resAC.CID.ACT = tdARQC then
   begin
-    //A2
+    // external authenticate
+    if GPORes1.AIP.IssuerAuthenticationSupported then
+    begin
+      AddLog('');
+      AddLog('* * * External athenticate');
+      FpcscC.ExternalAuthenticate(res, sw);
+      if sw <> $9000 then
+      begin
+        AddLog('External athenticate error: ' + IntToHex(sw, 4));
+        exit;
+      end
+      else
+        AddLog('External athenticate OK');
+    end
+    else
+      AddLog('* External athenticate not supported according to AIP');
+
+    // execute AC2
+    AddLog('');
     AddLog('* * * Generate Second AC');
+
     sid.Clear;
     sid.ACT := tdTC; // request for online transaction
 
-    res := FpcscC.GenerateAC(sid.Serialize, CDOL2.SerializeValues, sw);
-    if sw <> $9000 then
-    begin
-      AddLog('Command GENERATE AC2 error: ' + IntToHex(sw, 4));
-      exit;
-    end;
-    if length(res) = 0 then exit;
-    AddLog('****' + Bin2HexExt(res, true, true));
-
+    // AC plus crypto check
+    if not GenerateAC(sid, false, bank, resAC) then exit;
   end;
 
   Result := true;
@@ -1105,6 +1010,137 @@ begin
   //95:(Terminal Verification Results) len:5
   CDOL1.SetTagValue(#$95, tvr.Serialize);
   CDOL2.SetTagValue(#$95, tvr.Serialize);
+
+  Result := true;
+end;
+
+function TEMV.GenerateAC(sid: rSID; FirstAC: boolean; bank: TVirtualBank; var resAC: tlvRespTmplAC1): boolean;
+Var
+  ICCDynamicNumber,
+  RawDataARQC,
+  res: AnsiString;
+  sw: word;
+  CDOL: tlvPDOL;
+  tlv: TTLV;
+begin
+  Result := false;
+
+  // get random number from card
+  ICCDynamicNumber := FpcscC.GetChallenge(sw);
+  if sw <> $9000 then
+  begin
+    AddLog('Command GET CHALLENGE error: ' + IntToHex(sw, 4));
+    exit;
+  end;
+
+  if length(ICCDynamicNumber) <> 8 then exit;
+
+  // put card random into CDOL
+  if  FirstAC then
+    CDOL1.SetTagValue(#$9F#$4C, ICCDynamicNumber)
+  else
+    CDOL2.SetTagValue(#$9F#$4C, ICCDynamicNumber);
+
+  if  FirstAC then
+  begin
+    // CDOL logging
+    AddLog('CDOL1: ');
+    AddLog(CDOL1.DecodeStr('^'));
+
+    if not CDOL1.Valid then
+    begin
+      AddLog('CDOL1 not valid. exit.');
+      exit;
+    end;
+
+    CDOL := CDOL1;
+  end
+  else
+  begin
+    // CDOL logging
+    AddLog('CDOL2: ');
+    AddLog(CDOL2.DecodeStr('^'));
+
+    if not CDOL2.Valid then
+    begin
+      AddLog('CDOL2 not valid. exit.');
+      exit;
+    end;
+
+    CDOL := CDOL2;
+  end;
+
+  AddLog('GENERATE AC APDU');
+  res := FpcscC.GenerateAC(sid.Serialize, CDOL.SerializeValues, sw);
+  if sw <> $9000 then
+  begin
+    AddLog('Command GENERATE AC error: ' + IntToHex(sw, 4));
+    exit;
+  end;
+  if length(res) = 0 then exit;
+  AddLog('****' + Bin2HexExt(res, true, true));
+
+  tlv := TTLV.Create;
+  try
+    case res[1] of
+    #$80: // 80 Response Message Template Format 1
+      begin
+        tlv.Deserealize(res);
+        resAC.Deserialize(tlv.Value);
+        if LoggingTLV then AddLog(resAC.DecodeStr);
+      end;
+    #$77: // 77 Response Message Template Format 2
+      begin
+        tlv.Deserealize(res);
+        if LoggingTLV then AddLog(tlv.GetStrTree);
+
+        // TODO!!!!!
+
+      end;
+    else
+      exit;
+    end;
+  finally
+    tlv.Free;
+  end;
+
+  if not resAC.Valid then
+  begin
+    AddLog('AC response not valid. exit.');
+    exit;
+  end;
+
+  AddLog('* * * Cryptogram verification ARQC');
+
+  RawDataARQC := CDOL1.SerializeValues + GPORes1.sAIP + resAC.sATC;
+  if resAC.sIAD <> '' then RawDataARQC := RawDataARQC + Copy(resAC.sIAD, 4, length(resAC.sIAD));
+  AddLog('Raw ARQC: ' + Bin2HexExt(RawDataARQC, true, true));
+
+  res := bank.CalculateARQC(
+           AFLListGetParam(#$5A),     // PAN
+           AFLListGetParam(#$5F#$34), // PAN Sequence Number
+           RawDataARQC);
+  AddLog('Hash raw ARQC: ' + Bin2HexExt(res, true, true));
+  if res = resAC.AC then
+    AddLog('Cryptogram verification passed')
+  else
+  begin
+    AddLog('Cryptogram verification failed');
+    exit;
+  end;
+
+  case resAC.CID.ACT of
+    tdAAC:
+      begin
+        AddLog('Transaction declined.');
+        exit;
+      end;
+    tdTC:
+      begin
+        AddLog('Transaction approved offline.');
+        exit;
+      end;
+  end;
 
   Result := true;
 end;
