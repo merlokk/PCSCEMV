@@ -758,6 +758,7 @@ var
   StepResult: boolean;
 begin
   Result := false;
+  AddLog('');
   AddLog('* * * Processing CVM (Cardholder Verification Method)');
 
   if not CVMlist.Deserialize(AFLListGetParam(#$8E)) then exit;
@@ -826,10 +827,8 @@ var
   CertIs: certIssuerPublicKey;
   CertICC: certICCPublicKey;
   SDAD: certSignedDynamicAppData;
-  SDATagList: tlvSDATagList;
   sw: word;
   tlv: TTLV;
-  i: Integer;
 begin
   Result := false;
   AddLog('');
@@ -950,7 +949,7 @@ begin
 
   //  80 Response Message Template Format 1
   if res[1] = #$80 then
-    DecrCertificate := Copy(DecrCertificate, 4, length(DecrCertificate));
+    DecrCertificate := Copy(DecrCertificate, AnsiPos(#$6A, DecrCertificate), length(DecrCertificate));
 
   SDAD.CKeySize := ICCPublicKey.Size;
   SDAD.CRandomNum := RandomNumber;
