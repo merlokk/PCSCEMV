@@ -194,6 +194,7 @@ type
   end;
 
   // 80 AC Response Message Template Format 1
+  // 77 AC Response Message Template Format 2
   tlvRespTmplAC1 = packed record
     Valid: boolean;
 
@@ -205,8 +206,11 @@ type
     AC,
     sIAD: AnsiString;
 
-    function Deserialize(data: AnsiString): boolean;
+    function Deserialize(data: AnsiString): boolean; overload;  // format 1
+    function Deserialize(elm: TTLV): boolean; overload;         // format 2
     function DecodeStr: string;
+  private
+    procedure Clear;
   end;
 
   // 83 Command Template
@@ -1104,16 +1108,17 @@ begin
     #$80: // 80 Response Message Template Format 1
       begin
         tlv.Deserealize(res);
-        resAC.Deserialize(tlv.Value);
         if LoggingTLV then AddLog(resAC.DecodeStr);
+
+        resAC.Deserialize(tlv.Value);
       end;
     #$77: // 77 Response Message Template Format 2
       begin
         tlv.Deserealize(res);
         if LoggingTLV then AddLog(tlv.GetStrTree);
 
-        // TODO!!!!!
-
+        resAC.Deserialize(tlv);
+        if LoggingTLV then AddLog(resAC.DecodeStr);
       end;
     else
       exit;
@@ -2522,19 +2527,23 @@ begin
      Result := Result + 'Issuer Application Data (IAD):' + Bin2HexExt(sIAD, true, true) + #$0D#$0A + IAD.DecodeStr;
 end;
 
+procedure tlvRespTmplAC1.Clear;
+begin
+  sCID := '';
+  sATC := '';
+  AC := '';
+  sIAD := '';
+  CID.Clear;
+  ATC := 0;
+  IAD.Valid := false;
+end;
+
 function tlvRespTmplAC1.Deserialize(data: AnsiString): boolean;
 begin
   Result := false;
   Valid := false;
 
-  sCID := '';
-  sATC := '';
-  AC := '';
-  sIAD := '';
-
-  CID.Clear;
-  ATC := 0;
-  IAD.Valid := false;
+  Clear;
 
   if length(data) < 11 then exit;
 
@@ -2613,6 +2622,35 @@ begin
   end;
 
   Raw := Result;
+end;
+
+function tlvRespTmplAC1.Deserialize(elm: TTLV): boolean;
+begin
+  Result := false;
+  Valid := false;
+
+  Clear;
+
+  if elm = nil then exit;
+
+  // 9F27: Cryptogram Information Data
+  if not elm.GetPathValue([#$9F#$27], sCID) then exit;
+
+  // 9F36: Application Transaction Counter (ATC)
+  if not elm.GetPathValue([#$9F#$36], sATC) then exit;
+
+  // 9F26: Application Cryptogram
+  if not elm.GetPathValue([#$9F#$26], AC) then exit;
+
+  // 9F10:(Issuer Application Data
+  elm.GetPathValue([#$9F#$10], sIAD); // optional
+  IAD.Deserialize(sIAD);
+
+  CID.Deserialize(byte(sCID[1]));
+  ATC := EMVIntegerHexDecode(sATC);
+
+  Result := true;
+  Valid := true;
 end;
 
 end.
