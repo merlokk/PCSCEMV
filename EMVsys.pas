@@ -1103,24 +1103,12 @@ begin
   AddLog('****' + Bin2HexExt(res, true, true));
 
   tlv := TTLV.Create;
-  tlv.Deserealize(res);
-  if LoggingTLV then AddLog(tlv.GetStrTree);
-
   try
-    case res[1] of
-    #$80: // 80 Response Message Template Format 1
-      begin
-        resAC.Deserialize(tlv.Value);
-        if LoggingTLV then AddLog(resAC.DecodeStr);
-      end;
-    #$77: // 77 Response Message Template Format 2
-      begin
-        resAC.Deserialize(tlv);
-        if LoggingTLV then AddLog(resAC.DecodeStr);
-      end;
-    else
-      exit;
-    end;
+    tlv.Deserealize(res);
+    if LoggingTLV then AddLog(tlv.GetStrTree);
+
+    resAC.Deserialize(tlv);
+    if LoggingTLV then AddLog(resAC.DecodeStr);
   finally
     tlv.Free;
   end;
@@ -2630,6 +2618,16 @@ begin
   Clear;
 
   if elm = nil then exit;
+
+  // 80 Response Message Template Format 1
+  if elm.Tag = #$80 then
+  begin
+    Result := Deserialize(elm.Value);
+    exit;
+  end;
+
+  // 77 Response Message Template Format 2
+  if elm.Tag <> #$77 then exit;
 
   // 9F27: Cryptogram Information Data
   if not elm.GetPathValue([#$9F#$27], sCID) then exit;
