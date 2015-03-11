@@ -923,7 +923,8 @@ begin
     case res[1] of
     #$80: // 80 Response Message Template Format 1
       begin
-        Certificate := Copy(res, 2, length(res));
+        tlv.Deserealize(res);
+        Certificate := tlv.Value;
       end;
     #$77: // 77 Response Message Template Format 2
       begin
@@ -946,10 +947,6 @@ begin
   DecrCertificate := TChipher.RSADecode(Certificate, ICCPublicKey);
   AddLog('Signed Dynamic Application Data:');
   AddLog(Bin2HexExt(DecrCertificate, true, true));
-
-  //  80 Response Message Template Format 1
-  if res[1] = #$80 then
-    DecrCertificate := Copy(DecrCertificate, AnsiPos(#$6A, DecrCertificate), length(DecrCertificate));
 
   SDAD.CKeySize := ICCPublicKey.Size;
   SDAD.CRandomNum := RandomNumber;

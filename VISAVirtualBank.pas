@@ -30,8 +30,8 @@ type
 const
   KeyTypeFileKey: array [TKeyType] of string = (
     'AC',
-    'MAC',
-    'ENC');
+    'MAC',   // Master (Unique) Message Authentication Code Key
+    'ENC');  // Master (Unique) Data Encipherment DEA Key
 
 implementation
 
