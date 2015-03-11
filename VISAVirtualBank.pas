@@ -22,6 +22,7 @@ type
 
     function CalculateARQC(PAN, PANSequence, RawData: AnsiString): AnsiString;
     function CalculateARPC(PAN, PANSequence, RawData: AnsiString): AnsiString;
+    function GetHostResponse: AnsiString;
 
     constructor Create;
     destructor Destroy; override;
@@ -73,6 +74,11 @@ destructor TVirtualBank.Destroy;
 begin
 
   inherited;
+end;
+
+function TVirtualBank.GetHostResponse: AnsiString;
+begin
+  Result := '00'; // $3030
 end;
 
 function TVirtualBank.GetUDK(PAN, PANSeq: AnsiString; KeyType: TKeyType): AnsiString;

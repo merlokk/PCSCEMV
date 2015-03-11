@@ -623,7 +623,7 @@ begin
   AddLog('');
 
   // Authorisation Response Code
-  ARC := #$30#$30;
+  ARC := bank.GetHostResponse;
   AddLog('* * * Host Response: ' + Bin2HexExt(ARC, false, true));
 
   // add authorization response code to CDOL2 for Generate AC2
