@@ -31,5 +31,8 @@ http://www.openscdp.org/scripts/emv/index.html
 Fully working terminal written in Ruby.
 https://code.google.com/p/ruby-pboc2-lib/source/browse/trunk/lib/pboc.rb
 
+EMV kernel written in C++
+https://github.com/ntufar/EMV/tree/master/EMV_Library
+
 
 
