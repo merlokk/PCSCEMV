@@ -2,7 +2,7 @@ program emvpcsc;
 
 uses
   Vcl.Forms,
-  fMain in 'fMain.pas' {Form1},
+  fMain in 'fMain.pas' {fPOS},
   PCSCConnector in 'PCSCConnector.pas',
   SCardErr in 'SCardErr.pas',
   WinSCard in 'WinSCard.pas',
@@ -32,6 +32,6 @@ uses
 begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
-  Application.CreateForm(TForm1, Form1);
+  Application.CreateForm(TfPOS, fPOS);
   Application.Run;
 end.

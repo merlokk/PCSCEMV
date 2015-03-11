@@ -87,7 +87,7 @@
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
         <DCCReference Include="fMain.pas">
-            <Form>Form1</Form>
+            <Form>fPOS</Form>
             <FormType>dfm</FormType>
         </DCCReference>
         <DCCReference Include="PCSCConnector.pas"/>

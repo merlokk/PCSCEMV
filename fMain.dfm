@@ -1,4 +1,4 @@
-object Form1: TForm1
+object fPOS: TfPOS
   Left = 0
   Top = 0
   Caption = 'Test POS terminal'
@@ -18,7 +18,7 @@ object Form1: TForm1
     Left = 0
     Top = 0
     Width = 1105
-    Height = 201
+    Height = 195
     Align = alTop
     BevelOuter = bvNone
     TabOrder = 0
@@ -54,14 +54,14 @@ object Form1: TForm1
       TabOrder = 1
       OnClick = btRefreshClick
     end
-    object Button1: TButton
+    object btRun: TButton
       Left = 16
       Top = 128
       Width = 75
       Height = 25
       Caption = 'Run'
       TabOrder = 2
-      OnClick = Button1Click
+      OnClick = btRunClick
     end
     object cbATR: TCheckBox
       Left = 16
@@ -114,14 +114,58 @@ object Form1: TForm1
       TabOrder = 8
       OnClick = Button2Click
     end
+    object cbAPDULogging: TCheckBox
+      Left = 16
+      Top = 102
+      Width = 97
+      Height = 17
+      Caption = 'APDU logging'
+      TabOrder = 9
+    end
+    object cbGoodTVR: TCheckBox
+      Left = 255
+      Top = 102
+      Width = 130
+      Height = 17
+      Caption = 'Use "all OK" TVR'
+      Checked = True
+      State = cbChecked
+      TabOrder = 10
+    end
+    object btSaveLog: TButton
+      Left = 16
+      Top = 159
+      Width = 75
+      Height = 25
+      Caption = 'Save log'
+      TabOrder = 11
+      OnClick = btSaveLogClick
+    end
+    object edLogName: TEdit
+      Left = 97
+      Top = 159
+      Width = 152
+      Height = 24
+      TabOrder = 12
+    end
+    object cbUpToAC1: TCheckBox
+      Left = 255
+      Top = 125
+      Width = 194
+      Height = 17
+      Caption = 'Do not execute AC1 and next'
+      TabOrder = 13
+    end
   end
-  object Memo1: TMemo
+  object meLog: TMemo
     Left = 0
-    Top = 201
+    Top = 195
     Width = 1105
-    Height = 519
+    Height = 525
     Align = alClient
     ScrollBars = ssVertical
     TabOrder = 1
+    ExplicitTop = 201
+    ExplicitHeight = 519
   end
 end

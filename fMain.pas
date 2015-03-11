@@ -4,17 +4,17 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.StdCtrls,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.StdCtrls, UITypes,
   defs, PCSCConnector, CardUtils, EMVsys, EMVConst, VISAVirtualBank, Chiphers;
 
 type
-  TForm1 = class(TForm)
+  TfPOS = class(TForm)
     Panel1: TPanel;
     Label1: TLabel;
     cbReaders: TComboBox;
     btRefresh: TButton;
-    Memo1: TMemo;
-    Button1: TButton;
+    meLog: TMemo;
+    btRun: TButton;
     cbATR: TCheckBox;
     cbTLV: TCheckBox;
     cbCheckExpired: TCheckBox;
@@ -22,10 +22,16 @@ type
     edPIN: TEdit;
     Label2: TLabel;
     Button2: TButton;
+    cbAPDULogging: TCheckBox;
+    cbGoodTVR: TCheckBox;
+    btSaveLog: TButton;
+    edLogName: TEdit;
+    cbUpToAC1: TCheckBox;
     procedure FormCreate(Sender: TObject);
-    procedure Button1Click(Sender: TObject);
+    procedure btRunClick(Sender: TObject);
     procedure btRefreshClick(Sender: TObject);
     procedure Button2Click(Sender: TObject);
+    procedure btSaveLogClick(Sender: TObject);
   private
     { Private declarations }
 
@@ -35,7 +41,7 @@ type
   end;
 
 var
-  Form1: TForm1;
+  fPOS: TfPOS;
 
 implementation
 
@@ -43,10 +49,10 @@ implementation
 
 procedure LoggerAddLog(s: string);
 begin
-  Form1.Memo1.Lines.Add(s);
+  fPOS.meLog.Lines.Add(s);
 end;
 
-procedure TForm1.btRefreshClick(Sender: TObject);
+procedure TfPOS.btRefreshClick(Sender: TObject);
 var
   pcscC: TPCSCConnector;
   indx: integer;
@@ -76,7 +82,7 @@ begin
   end;
 end;
 
-procedure TForm1.Button1Click(Sender: TObject);
+procedure TfPOS.btRunClick(Sender: TObject);
 var
   pcscC: TPCSCConnector;
   Result: boolean;
@@ -89,12 +95,15 @@ begin
     ClearLog;
 
     pcscC := TPCSCConnector.Create(Application);
+    pcscC.APDULogging := cbAPDULogging.Checked;
 
     AddLog('* PCSC init');
     pcscC.Init;
     pcscC.UseReaderNum := cbReaders.ItemIndex;
 
     AddLog('* PCSC inited. readers count=' + IntToStr(pcscC.NumReaders));
+
+    edLogName.Text := FormatDateTime('DDMMYYYY', Now);
 
     emv := nil;
     try
@@ -138,7 +147,7 @@ begin
       emv.GetAIDsByPSE('1PAY.SYS.DDF01');
       emv.GetAIDsByPSE('2PAY.SYS.DDF01');
 
-      emv.AIDList.Clear; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      emv.AIDList.Clear; // !!!!!!!!!!!!! TEST !!!!!!!!!!!!!!!!!
       if emv.AIDList.Count < 1 then
       begin
         AddLog('');
@@ -186,6 +195,8 @@ begin
        exit;
      end;
 
+     edLogName.Text := Bin2HexExt(emv.AFLListGetParam(#$5A), false, true);
+
      // EMV 4.3 book3 10.3 page 111. Auth priority CDA --> DDA --> SDA
      //* Updated Input to Authentication as valid 9F4A is present
      if emv.GPORes1.AIP.SDAsupported then
@@ -206,10 +217,17 @@ begin
     emv.VerifyPIN := cbVerifyPIN.Checked;
     if not emv.CVM then exit;
 
+    if cbUpToAC1.Checked then
+    begin
+      AddLog('');
+      AddLog('Stop before AC1 checkbox checked. Stopped.');
+      exit;
+    end;
+
     AddLog('');
     AddLog('* Generate AC');
     // prepare AC data
-    if not emv.FillCDOLRecords(true) then exit;
+    if not emv.FillCDOLRecords(cbGoodTVR.Checked) then exit;
 
     //9F02:(Amount, Authorised (Numeric)) len:6
     emv.CDOL1.SetTagValue(#$9F#$02, #$00#$00#$00#$00#$01#$00);
@@ -264,23 +282,32 @@ begin
   end;
 end;
 
-procedure TForm1.Button2Click(Sender: TObject);
+procedure TfPOS.btSaveLogClick(Sender: TObject);
+var
+  FileName: string;
 begin
-  Memo1.Lines.Add('hash:' + Bin2HexExt(
+  FileName := ExtractFilePath(Application.ExeName) + edLogName.Text + '.log';
+  meLog.Lines.SaveToFile(FileName);
+  MessageDlg('Saved to file: ' + FileName, mtInformation, [mbOk], 0);
+end;
+
+procedure TfPOS.Button2Click(Sender: TObject);
+begin
+  meLog.Lines.Add('hash:' + Bin2HexExt(
   TChipher.DesMACEmv(
     Hex2Bin(''),
     Hex2Bin('')), false, true));
-  Memo1.Lines.Add('expected: ')
+  meLog.Lines.Add('expected: ')
 end;
 
-procedure TForm1.ClearLog;
+procedure TfPOS.ClearLog;
 begin
-  Memo1.Lines.Clear;
-  Memo1.Lines.Add(FormatDateTime('', Now));
+  meLog.Lines.Clear;
+  meLog.Lines.Add(FormatDateTime('', Now));
   SLogger := LoggerAddLog;
 end;
 
-procedure TForm1.FormCreate(Sender: TObject);
+procedure TfPOS.FormCreate(Sender: TObject);
 begin
   btRefreshClick(Sender);
 end;

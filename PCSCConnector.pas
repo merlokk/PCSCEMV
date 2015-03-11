@@ -46,7 +46,7 @@ interface
 
 uses
   Windows, Messages, Forms, Classes, SysUtils,
-  SCardErr, WinSCard, WinSmCrd, CardUtils;
+  SCardErr, WinSCard, WinSmCrd, CardUtils, defs;
 
 type
   TErrSource         = (esInit, esConnect, esGetStatus, esTransmit);
@@ -103,6 +103,8 @@ type
     FUseReaderNum       : integer;
 
     FReaderList         : TStringlist;
+
+    FAPDULogging        : boolean;
 
     FAttrProtocol       : integer;
     FAttrICCType        : string;
@@ -165,6 +167,7 @@ type
 
   published
     property UseReaderNum: integer    read FUseReaderNum    write SetReaderNum  default -1;
+    property APDULogging: boolean     read FAPDULogging     write FAPDULogging  default false;
 
     property OnCardInserted:     TNotifyEvent    read FOnCardInserted     write FOnCardInserted;
     property OnCardActive:       TNotifyEvent    read FOnCardActive       write FOnCardActive;
@@ -314,6 +317,7 @@ begin
   FNumReaders   := 0;
   FUseReaderNum := -1;
   FConnected    := false;
+  FAPDULogging  := false;
   ActReaderState  := SCARD_STATE_UNAWARE;
   LastReaderState := SCARD_STATE_UNAWARE;
   ReaderOpen      := false;
@@ -774,25 +778,31 @@ var
   RLen   : cardinal;
   Ppci   : Pointer;
 begin
-SBuf := APdu;
-RBuf := AnsiString(StringOfChar(#0,MAXAPDULENGTH));
-if Length(SBuf) <= MAXAPDULENGTH then
+  SBuf := apdu;
+  if FAPDULogging then AddLog('--> ' + Bin2Hex(apdu));
+  RBuf := AnsiString(StringOfChar(#0, MAXAPDULENGTH));
+  if Length(SBuf) <= MAXAPDULENGTH then
   begin
-  case FAttrProtocol of
-    SCARD_PROTOCOL_T0 : Ppci := @SCARD_PCI_T0;
-    SCARD_PROTOCOL_T1 : Ppci := @SCARD_PCI_T1;
-    else                Ppci := nil;
+    case FAttrProtocol of
+      SCARD_PROTOCOL_T0: Ppci := @SCARD_PCI_T0;
+      SCARD_PROTOCOL_T1: Ppci := @SCARD_PCI_T1;
+    else
+                         Ppci := nil;
     end;
-  SLen := Length(APdu);
-  RLen := Length(RBuf);
-  RetVar := SCardTransmit(FCardHandle, Ppci, @SBuf[1], SLen, nil, @RBuf[1], @RLen);
-  if RetVar = SCARD_S_SUCCESS then
+
+    SLen := Length(apdu);
+    RLen := Length(RBuf);
+    RetVar := SCardTransmit(FCardHandle, Ppci, @SBuf[1], SLen, nil, @RBuf[1], @RLen);
+    if RetVar = SCARD_S_SUCCESS then
     begin
-    Result := Copy(RBuf,1,RLen);
-    end else
+      Result := Copy(RBuf, 1, RLen);
+      if FAPDULogging then AddLog('<-- ' + Bin2Hex(Result));
+    end
+    else
     begin
-    Result := '';
-    if Assigned(FOnError) then FOnError(Self, esTransmit, RetVar);
+      if FAPDULogging then AddLog('<-- error: ' + IntToHex(RetVar, 8));
+      Result := '';
+      if Assigned(FOnError) then FOnError(Self, esTransmit, RetVar);
     end;
   end;
 end;
@@ -834,4 +844,3 @@ begin
 end;
 
 end.
-
