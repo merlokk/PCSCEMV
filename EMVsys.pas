@@ -1385,7 +1385,7 @@ begin
       for j := GPORes1.AFL[i].StartRecN to GPORes1.AFL[i].EndRecN do
       begin
         AddLog('SFI: 0x' + IntToHex(GPORes1.AFL[i].SFI, 2) + ' rec num:' + IntToStr(j));
-        data := FpcscC.ReadSFIRecord(GPORes1.AFL[i].SFI shr 3, j, sw);
+        data := FpcscC.ReadSFIRecord(GPORes1.AFL[i].SFI, j, sw);
         AddLog('****' + Bin2HexExt(data, true, true));
         if sw <> $9000 then
         begin
@@ -1409,12 +1409,10 @@ begin
            (GPORes1.AFL[i].OfflineCount + GPORes1.AFL[i].StartRecN > j) then
         begin
           // EMV 4.3 book3 10.3, page 96
-     {     if GPORes1.AFL[i].SFI <= 10 then
+          if GPORes1.AFL[i].SFI <= 10 then
             DAInput := DAInput + atlv.Value  // only value
           else
-            DAInput := DAInput + data;       // full data}
-          // the above NOT WORKS!!!!!
-          DAInput := DAInput + atlv.Value;
+            DAInput := DAInput + data;       // full data
         end;
       end;
     end;
@@ -1962,7 +1960,7 @@ begin
 
   if Length(s) <> 4 then exit;
 
-  SFI := byte(s[1]);
+  SFI := byte(s[1]) shr 3;
   StartRecN := byte(s[2]);
   EndRecN := byte(s[3]);
   OfflineCount := byte(s[4]);
