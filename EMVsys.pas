@@ -623,6 +623,9 @@ begin
   ARC := #$30#$30;
   AddLog('* * * Host Response: ' + Bin2HexExt(ARC, false, true));
 
+  // add authorization response code to CDOL2 for Generate AC2
+  CDOL2.SetTagValue(#$8A, ARC);
+
   RawDataARPC := resAC.AC;
   for i := 1 to length(RawDataARPC) do
   begin
@@ -1149,7 +1152,10 @@ begin
       end;
     tdTC:
       begin
-        AddLog('Transaction approved offline.');
+        if FirstAC then
+          AddLog('Transaction approved offline.')
+        else
+          AddLog('Transaction approved online.');
         exit;
       end;
   end;
