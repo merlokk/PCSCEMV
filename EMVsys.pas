@@ -1103,20 +1103,18 @@ begin
   AddLog('****' + Bin2HexExt(res, true, true));
 
   tlv := TTLV.Create;
+  tlv.Deserealize(res);
+  if LoggingTLV then AddLog(tlv.GetStrTree);
+
   try
     case res[1] of
     #$80: // 80 Response Message Template Format 1
       begin
-        tlv.Deserealize(res);
-        if LoggingTLV then AddLog(resAC.DecodeStr);
-
         resAC.Deserialize(tlv.Value);
+        if LoggingTLV then AddLog(resAC.DecodeStr);
       end;
     #$77: // 77 Response Message Template Format 2
       begin
-        tlv.Deserealize(res);
-        if LoggingTLV then AddLog(tlv.GetStrTree);
-
         resAC.Deserialize(tlv);
         if LoggingTLV then AddLog(resAC.DecodeStr);
       end;
