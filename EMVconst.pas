@@ -18,6 +18,8 @@ type
     Value: string;
   end;
 
+  TTransactionType = (ttOffline, ttOnline);
+
   CVMRule1 = (cvrFailCVMprocessing, cvrPlaintextPINverificationbyICC, cvmEncipheredPINverifiedonline,
     cvrPlainPINverifybyICCandSignature, cvrEncipheredPINverifybyICC, cvrEncpiheredPINverifybyICCandSignature,
     cvrRFU, cvrSignature, cvrNoCVMrequired, cvrNA);

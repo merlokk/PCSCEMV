@@ -27,6 +27,9 @@ type
     btSaveLog: TButton;
     edLogName: TEdit;
     cbUpToAC1: TCheckBox;
+    cbIgnoreCVM: TCheckBox;
+    cbTransactionType: TComboBox;
+    Label3: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure btRunClick(Sender: TObject);
     procedure btRefreshClick(Sender: TObject);
@@ -89,8 +92,16 @@ var
   i: Integer;
   emv: TEMV;
   bank: TVirtualBank;
+  trType: TTransactionType;
 begin
   try
+    case cbTransactionType.ItemIndex of
+      0: trType := ttOffline;
+      1: trType := ttOnline;
+    else
+      trType := ttOnline;
+    end;
+
     if cbReaders.ItemIndex < 0 then exit;
     ClearLog;
 
@@ -215,7 +226,7 @@ begin
 
     emv.PlaintextPIN := AnsiString(edPIN.Text);
     emv.VerifyPIN := cbVerifyPIN.Checked;
-    if not emv.CVM then exit;
+    if not emv.CVM and not cbIgnoreCVM.Checked then exit;
 
     if cbUpToAC1.Checked then
     begin
@@ -264,7 +275,7 @@ begin
 
     // AC
     bank := TVirtualBank.Create;
-    if not emv.AC(bank) then exit;
+    if not emv.AC(bank, trType) then exit;
     bank.Free;
 
 

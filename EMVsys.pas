@@ -392,7 +392,7 @@ type
     function PlaintextPINVerify(pin: AnsiString): boolean;
 
     function FillCDOLRecords(UseGoodTVR: boolean): boolean;
-    function AC(bank: TVirtualBank): boolean;
+    function AC(bank: TVirtualBank; TransType: TTransactionType): boolean;
     function GenerateAC(sid: rSID; FirstAC: boolean; bank: TVirtualBank; var resAC: tlvRespTmplAC1): boolean;
 
     constructor Create(pcscC: TPCSCConnector);
@@ -595,7 +595,7 @@ end;
 
 { TEMV }
 
-function TEMV.AC(bank: TVirtualBank): boolean;
+function TEMV.AC(bank: TVirtualBank;  TransType: TTransactionType): boolean;
 var
   sw: word;
   ARC,
@@ -610,7 +610,10 @@ begin
 
   // AC1
   sid.Clear;
-  sid.ACT := tdARQC; // request for offline transaction
+  if TransType = ttOffline then
+    sid.ACT := tdTC; // request for offline transaction
+  if TransType = ttOnline then
+    sid.ACT := tdARQC; // request for online transaction
 
   // AC plus crypto check
   if not GenerateAC(sid, true, bank, resAC) then exit;

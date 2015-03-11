@@ -36,6 +36,13 @@ object fPOS: TfPOS
       Height = 16
       Caption = 'PIN'
     end
+    object Label3: TLabel
+      Left = 600
+      Top = 55
+      Width = 95
+      Height = 16
+      Caption = 'Transaction type'
+    end
     object cbReaders: TComboBox
       Left = 69
       Top = 16
@@ -60,7 +67,7 @@ object fPOS: TfPOS
       Width = 75
       Height = 25
       Caption = 'Run'
-      TabOrder = 2
+      TabOrder = 11
       OnClick = btRunClick
     end
     object cbATR: TCheckBox
@@ -69,7 +76,7 @@ object fPOS: TfPOS
       Width = 233
       Height = 17
       Caption = 'Show ATR and reader params'
-      TabOrder = 3
+      TabOrder = 2
     end
     object cbTLV: TCheckBox
       Left = 16
@@ -79,7 +86,7 @@ object fPOS: TfPOS
       Caption = 'Show TLV decoding'
       Checked = True
       State = cbChecked
-      TabOrder = 4
+      TabOrder = 3
     end
     object cbCheckExpired: TCheckBox
       Left = 255
@@ -95,23 +102,23 @@ object fPOS: TfPOS
       Width = 97
       Height = 17
       Caption = 'Verify PIN!!!!'
-      TabOrder = 6
+      TabOrder = 7
     end
     object edPIN: TEdit
       Left = 484
       Top = 76
       Width = 49
       Height = 24
-      TabOrder = 7
+      TabOrder = 6
       Text = '1234'
     end
     object Button2: TButton
-      Left = 904
-      Top = 64
+      Left = 992
+      Top = 159
       Width = 75
       Height = 25
-      Caption = 'Button2'
-      TabOrder = 8
+      Caption = 'Test'
+      TabOrder = 14
       OnClick = Button2Click
     end
     object cbAPDULogging: TCheckBox
@@ -120,17 +127,17 @@ object fPOS: TfPOS
       Width = 97
       Height = 17
       Caption = 'APDU logging'
-      TabOrder = 9
+      TabOrder = 4
     end
     object cbGoodTVR: TCheckBox
       Left = 255
-      Top = 102
+      Top = 125
       Width = 130
       Height = 17
       Caption = 'Use "all OK" TVR'
       Checked = True
       State = cbChecked
-      TabOrder = 10
+      TabOrder = 9
     end
     object btSaveLog: TButton
       Left = 16
@@ -138,23 +145,44 @@ object fPOS: TfPOS
       Width = 75
       Height = 25
       Caption = 'Save log'
-      TabOrder = 11
+      TabOrder = 12
       OnClick = btSaveLogClick
     end
     object edLogName: TEdit
       Left = 97
       Top = 159
-      Width = 152
+      Width = 136
       Height = 24
-      TabOrder = 12
+      TabOrder = 13
     end
     object cbUpToAC1: TCheckBox
       Left = 255
-      Top = 125
+      Top = 148
       Width = 194
       Height = 17
       Caption = 'Do not execute AC1 and next'
-      TabOrder = 13
+      TabOrder = 10
+    end
+    object cbIgnoreCVM: TCheckBox
+      Left = 255
+      Top = 102
+      Width = 186
+      Height = 17
+      Caption = 'Ignore false CVM result'
+      TabOrder = 8
+    end
+    object cbTransactionType: TComboBox
+      Left = 701
+      Top = 52
+      Width = 145
+      Height = 24
+      Style = csDropDownList
+      ItemIndex = 0
+      TabOrder = 15
+      Text = 'Offline'
+      Items.Strings = (
+        'Offline'
+        'Online')
     end
   end
   object meLog: TMemo
