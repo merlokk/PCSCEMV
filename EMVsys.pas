@@ -210,8 +210,9 @@ type
     AC,
     sIAD: AnsiString;
 
-    function Deserialize(data: AnsiString): boolean; overload;  // format 1
-    function Deserialize(elm: TTLV): boolean; overload;         // format 2
+    function DeserializeF80(data: AnsiString): boolean;  // format 1
+    function DeserializeF77(elm: TTLV): boolean;         // format 2
+    function Deserialize(elm: TTLV): boolean;
     function DecodeStr: string;
   private
     procedure Clear;
@@ -2528,7 +2529,7 @@ begin
   IAD.Valid := false;
 end;
 
-function tlvRespTmplAC1.Deserialize(data: AnsiString): boolean;
+function tlvRespTmplAC1.DeserializeF80(data: AnsiString): boolean;
 begin
   Result := false;
   Valid := false;
@@ -2624,11 +2625,22 @@ begin
   if elm = nil then exit;
 
   // 80 Response Message Template Format 1
-  if elm.Tag = #$80 then
-  begin
-    Result := Deserialize(elm.Value);
-    exit;
-  end;
+  if elm.Tag = #$80 then Result := DeserializeF80(elm.Value);
+
+  // 77 Response Message Template Format 2
+  if elm.Tag = #$77 then Result := DeserializeF77(elm);
+
+  Valid := Result;
+end;
+
+function tlvRespTmplAC1.DeserializeF77(elm: TTLV): boolean;
+begin
+  Result := false;
+  Valid := false;
+
+  Clear;
+
+  if elm = nil then exit;
 
   // 77 Response Message Template Format 2
   if elm.Tag <> #$77 then exit;

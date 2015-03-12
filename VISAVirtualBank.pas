@@ -86,6 +86,8 @@ begin
   Result := TKeyStorage.GetUDKKey(PAN, KeyType);
   if Result = '' then
     Result := TKeyStorage.DeriveKey(TKeyStorage.GetMDKKey(PAN, KeyType), PAN, PANSeq);
+
+  if Result = '' then AddLog('-- Cant found a 3DES key.');
 end;
 
 { TKeyStorage }
