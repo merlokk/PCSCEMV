@@ -19,6 +19,7 @@ type
 
   public
     function GetUDK(PAN, PANSeq: AnsiString; KeyType: TKeyType): AnsiString;
+    function GetSessionKey(PAN, PANSeq, ATC: AnsiString; KeyType: TKeyType): AnsiString;
 
     function CalculateARQC(PAN, PANSequence, RawData: AnsiString): AnsiString;
     function CalculateARPC(PAN, PANSequence, RawData: AnsiString): AnsiString;
@@ -79,6 +80,25 @@ end;
 function TVirtualBank.GetHostResponse: AnsiString;
 begin
   Result := '00'; // $3030
+end;
+
+function TVirtualBank.GetSessionKey(PAN, PANSeq, ATC: AnsiString;
+  KeyType: TKeyType): AnsiString;
+var
+  UDK: AnsiString;
+  ATCblock: AnsiString;
+  i: Integer;
+begin
+  Result := '';
+  UDK := GetUDK(PAN, PANSeq, KeyType);
+  if UDK = '' then exit;
+
+  ATCblock := AnsiString(StringOfChar(#0, 8 - length(ATC))) + ATC;
+  ATCblock := ATCblock + ATCblock;
+  for i := length(ATCblock) - length(ATC) + 1 to length(ATCblock) do
+    ATCblock[i] := AnsiChar(byte(ATCblock[i]) xor $FF);
+
+  Result := TChipher.TripleDesECBEncode(ATCblock, UDK);
 end;
 
 function TVirtualBank.GetUDK(PAN, PANSeq: AnsiString; KeyType: TKeyType): AnsiString;

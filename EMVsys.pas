@@ -380,6 +380,8 @@ type
     CDOL1,
     CDOL2: tlvPDOL;
 
+    TVR: rTVR;
+
     property SelectedAID: AnsiString read GetSelectedAID;
 
     procedure GetAIDsByPSE(PseAID: AnsiString);
@@ -390,6 +392,9 @@ type
 
     function SetGPO_PDOL(tag, val: AnsiString): boolean;
     function GPO: boolean;
+
+    function ProcessingRestrictions: boolean;
+    function RiskManagement: boolean;
 
     function AFLListGetParam(Tag: AnsiString): AnsiString;
     function AFLListGetTag(Tag: AnsiString): TTLV;
@@ -656,6 +661,7 @@ begin
   if res = '' then
   begin
     AddLog('ARPC creation failed.');
+    TVR.IssuerAuthenticationFailed := true;
     exit;
   end;
 
@@ -674,6 +680,7 @@ begin
       if sw <> $9000 then
       begin
         AddLog('External athenticate error: ' + IntToHex(sw, 4));
+        TVR.IssuerAuthenticationFailed := true;
         exit;
       end
       else
@@ -738,6 +745,8 @@ begin
 
   CDOL1.Valid := false;
   CDOL2.Valid := false;
+
+  TVR.Clear;
 end;
 
 function TEMV.GetStaticDataAuthTagList: AnsiString;
@@ -776,7 +785,11 @@ begin
   AddLog('');
   AddLog('* * * Processing CVM (Cardholder Verification Method)');
 
-  if not CVMlist.Deserialize(AFLListGetParam(#$8E)) then exit;
+  if not CVMlist.Deserialize(AFLListGetParam(#$8E)) then
+  begin
+   TVR.UnrecognisedCVM := true;
+   exit;
+  end;
   if LoggingTLV then AddLog(CVMlist.GetStr);
 
   StepResult := false;
@@ -812,6 +825,7 @@ begin
         end;
     else
       AddLog('* * * Unsupported CVM method: ' + CVMRule1Str[CVMlist.Items[i].Rule] + ' skipping.');
+      TVR.UnrecognisedCVM := true;
     end;
 
     if StepResult then break;
@@ -849,6 +863,8 @@ begin
   AddLog('');
   AddLog('* DDA');
   if FSelectedAID = '' then exit;
+
+  TVR.DDAFailed := true;
 
   PubKeyIndx := AFLListGetParam(#$8F);
   if length(PubKeyIndx) <> 1 then exit;
@@ -946,10 +962,7 @@ begin
         tlv.Deserealize(res);
         if LoggingTLV then AddLog(tlv.GetStrTree);
 
-        // TODO!!!!!
         Certificate := tlv.FindPath([#$9F#$4B]).Value;
-
-
       end;
 
     else
@@ -976,6 +989,7 @@ begin
   AddLog('* DDA OK');
 
   Result := true;
+  TVR.DDAFailed := false;
 end;
 
 destructor TEMV.Destroy;
@@ -990,7 +1004,6 @@ end;
 function TEMV.FillCDOLRecords(UseGoodTVR: boolean): boolean;
 var
   elm: TTLV;
-  tvr: rTVR;
 begin
   Result := false;
 
@@ -1026,7 +1039,6 @@ begin
   CDOL2.FillData;
 
   // make TVR
-  tvr.Clear;
   if UseGoodTVR then
   begin
     AddLog('* Use good TVR');
@@ -1144,6 +1156,7 @@ begin
   else
   begin
     AddLog('Cryptogram verification failed');
+    TVR.IssuerAuthenticationFailed := true;
     exit;
   end;
 
@@ -1345,7 +1358,6 @@ var
   atlv: TTLV;
   i: Integer;
   j: Integer;
-  dt: TDateTime;
 begin
   Result := false;
 
@@ -1406,36 +1418,6 @@ begin
       end;
     end;
 
-    // check mandatory fields EMV 4.3 book2 7.2
-    if AFLListGetParam(#$5F#$24) = '' then
-    begin
-      AddLog('Application Expiration Date not found!');
-      exit;
-    end;
-    if AFLListGetParam(#$5A) = '' then
-    begin
-      AddLog('Application Primary Account Number (PAN) not found!');
-      exit;
-    end;
-    if AFLListGetParam(#$8C) = '' then
-    begin
-      AddLog('Card Risk Management Data Object List 1 not found!');
-      exit;
-    end;
-    if AFLListGetParam(#$8D) = '' then
-    begin
-      AddLog('Card Risk Management Data Object List 2 not found!');
-      exit;
-    end;
-
-    // check application expire date
-    dt := EMVDateDecode(AFLListGetParam(#$5F#$24));
-    if CheckExpired and (dt < Now) then
-    begin
-      AddLog('Application expired!');
-      exit;
-    end;
-
   finally
     tlv.Free;
   end;
@@ -1458,7 +1440,11 @@ begin
 
   trycount := GetPINTryCount;
   AddLog('Pin try count=' + IntToStr(trycount));
-  if trycount < 2 then exit;  // here must be 1 but we avoid card PIN blocking
+  if trycount < 2 then  // here must be 1 but we avoid card PIN blocking
+  begin
+    TVR.PINTryLimitExceeded := true;
+    exit;
+  end;
 
   // EMV 4.3 book 3, 6.5.12, page 67
   refdata := $80; // 10000000 - Plaintext PIN
@@ -1473,16 +1459,130 @@ begin
   if Hi(sw) = $63 then
   begin
     AddLog('Pin Verification error! Try count=' + IntToStr(sw and $0F));
+    TVR.CardholderVerificationWasNotSuccessful := true;
     exit;
   end;
 
   if sw <> $9000 then
   begin
     AddLog('Pin Verification error!');
+    TVR.CardholderVerificationWasNotSuccessful := true;
     exit;
   end
   else
     AddLog('Pin OK.');
+
+  Result := true;
+end;
+
+function TEMV.ProcessingRestrictions: boolean;
+var
+  dt: TDateTime;
+begin
+  Result := false;
+  AddLog('* Processing restrictions.');
+
+  // check mandatory fields EMV 4.3 book2 7.2
+  if AFLListGetParam(#$5F#$24) = '' then
+  begin
+    AddLog('Application Expiration Date not found!');
+    TVR.ICCDataMissing := true;
+    exit;
+  end;
+  if AFLListGetParam(#$5A) = '' then
+  begin
+    AddLog('Application Primary Account Number (PAN) not found!');
+    TVR.ICCDataMissing := true;
+    exit;
+  end;
+  if AFLListGetParam(#$8C) = '' then
+  begin
+    AddLog('Card Risk Management Data Object List 1 not found!');
+    TVR.ICCDataMissing := true;
+    exit;
+  end;
+  if AFLListGetParam(#$8D) = '' then
+  begin
+    AddLog('Card Risk Management Data Object List 2 not found!');
+    TVR.ICCDataMissing := true;
+    exit;
+  end;
+
+  // check version
+  if AFLListGetParam(#$9F#$08) <> #$00#$8C then
+  begin
+    AddLog('ICC and terminal have different application versions!');
+    TVR.ICCandTerminalDifferentAppVersions := true;
+  end;
+
+  // check 0x9F07: Application Usage Control
+  if AFLListGetParam(#$9F#$07) <> '' then ; // TODO
+
+  // check application effective date
+  dt := EMVDateDecode(AFLListGetParam(#$5F#$25));
+  if CheckExpired and (dt > Now) then
+  begin
+    AddLog('Application not yet effective!');
+    TVR.AppNotYetEffective := true;
+    exit;
+  end;
+
+  // check application expire date
+  dt := EMVDateDecode(AFLListGetParam(#$5F#$24));
+  if CheckExpired and (dt < Now) then
+  begin
+    AddLog('Application expired!');
+    TVR.ExpiredApp := true;
+    exit;
+  end;
+
+  Result := true;
+end;
+
+function TEMV.RiskManagement: boolean;
+var
+  LowCOL,
+  UpCOL,
+  sATC,
+  sOnlineATC: AnsiString;
+  ATC,
+  OnlineATC: Int64;
+  sw: word;
+begin
+  Result := false;
+
+  // Floor Limit and Random Transaction Selection we dont need
+
+  // Velocity Checking
+
+  // 9F14: Lower Consecutive Offline Limit
+  LowCOL := AFLListGetParam(#$9F#$14);
+  // 9F23: Upper Consecutive Offline Limit
+  UpCOL := AFLListGetParam(#$9F#$23);
+
+  // If there are no Lower/Upper Consecutive Offline Limit data objetcts on the card, the terminal shall skip velocity checking.
+  if (LowCOL = '') or (UpCOL = '') then
+  begin
+    Result := true;
+    exit;
+  end;
+
+  AddLog('* Velocity checking');
+
+  // 9F36: Application Transaction Counter (ATC)
+  sATC := FpcscC.GetData(#$9F#$36, sw);
+  if sw <> $9000 then exit;
+
+  // 9F113: Last Online ATC Register
+  sOnlineATC := FpcscC.GetData(#$9F#$13, sw);
+  if sw <> $9000 then exit;
+
+  ATC := EMVIntegerHexDecode(sATC);
+  OnlineATC := EMVIntegerHexDecode(sOnlineATC);
+  AddLog('ATC=' + IntToHex(ATC, 8) + ' online ATC=' + IntToHex(OnlineATC, 8) +
+    ' delta=' + IntToHex(ATC - OnlineATC, 8));
+
+  // todo
 
   Result := true;
 end;
@@ -1503,6 +1603,7 @@ begin
   if FSelectedAID = '' then exit;
 
   DataAuthCode9F45 := '';
+  TVR.SDAFailed := true;
 
   PubKeyIndx := AFLListGetParam(#$8F);
   if length(PubKeyIndx) <> 1 then exit;
@@ -1568,6 +1669,7 @@ begin
   DataAuthCode9F45 := CertApp.DataAuthenticationCode;
 
   Result := true;
+  TVR.SDAFailed := false;
 end;
 
 procedure TEMV.SelectApp(aid: AnsiString);
@@ -1594,6 +1696,8 @@ begin
 
   if FCIPTSelectedApp.Valid then
     FSelectedAID := aid;
+
+  TVR.Clear;
 end;
 
 procedure TEMV.SelectAppByList;
@@ -1646,7 +1750,7 @@ begin
   // 50 Application Label
   elm.GetPathValue([#$50], ApplicationLabel);
   if ApplicationLabel = '' then
-    ApplicationLabel := Bin2Hex(Copy(AID, 1, 5));
+    ApplicationLabel := AnsiString(Bin2Hex(Copy(AID, 1, 5)));
 
   // 87 Application Priority Indicator
   elm.GetPathValue([#$87], ApplicationPriority);
@@ -2682,7 +2786,6 @@ begin
   if not elm.GetPathValue([#$9F#$27], sCID) then exit;
 
   // 9F36: Application Transaction Counter (ATC)
-  if not elm.GetPathValue([#$9F#$36], sATC) then exit;
 
   // 9F26: Application Cryptogram
   if not elm.GetPathValue([#$9F#$26], AC) then exit;

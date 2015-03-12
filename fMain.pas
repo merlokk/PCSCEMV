@@ -214,6 +214,9 @@ begin
 
      edLogName.Text := Bin2HexExt(emv.AFLListGetParam(#$5A), false, true);
 
+     // procedding restrictions
+     emv.ProcessingRestrictions;
+
      // EMV 4.3 book3 10.3 page 111. Auth priority CDA --> DDA --> SDA
      //* Updated Input to Authentication as valid 9F4A is present
      if emv.GPORes.AIP.SDAsupported then
@@ -233,6 +236,9 @@ begin
     emv.PlaintextPIN := AnsiString(edPIN.Text);
     emv.VerifyPIN := cbVerifyPIN.Checked;
     if not emv.CVM and not cbIgnoreCVM.Checked then exit;
+
+    // Terminal Risk Management
+    emv.RiskManagement;
 
     if cbUpToAC1.Checked then
     begin
