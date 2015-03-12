@@ -163,7 +163,11 @@ type
   end;
 
   // 80 GPO Response Message Template Format 1
-  tlvRespTmplGPO1 = packed record
+  // 77 GPO Response Message Template Format 2
+  tlvRespTmplGPO = packed record
+  private
+    function ExtractDataFromStr: boolean;
+  public
     Valid: boolean;
 
     sAIP,
@@ -172,15 +176,12 @@ type
     AIP: rAIP;
     AFL: array of rAFL;
 
-    function Deserialize(data: AnsiString): boolean;
-    function DecodeStr: string;
-  end;
+    procedure Clear;
 
-  // 77 GPO Response Message Template Format 2
-  tlvRespTmplGPO2 = packed record
-    Valid: boolean;
-
+    function DeserializeF80(data: AnsiString): boolean;
+    function DeserializeF77(elm: TTLV): boolean;
     function Deserialize(elm: TTLV): boolean;
+    function DecodeStr: string;
   end;
 
   rSID  = packed record
@@ -367,8 +368,7 @@ type
     AIDList: TList<tlvAppTemplate>;
     TLVSelectedApp: TTLV;
     FCIPTSelectedApp: tlvFCIPT;
-    GPORes1: tlvRespTmplGPO1;
-    GPORes2: tlvRespTmplGPO2;
+    GPORes: tlvRespTmplGPO;
     AFLList: TObjectList<TTLV>;
     DAInput: AnsiString;
     DataAuthCode9F45: AnsiString;
@@ -665,7 +665,7 @@ begin
   if resAC.CID.ACT = tdARQC then
   begin
     // external authenticate
-    if GPORes1.AIP.IssuerAuthenticationSupported then
+    if GPORes.AIP.IssuerAuthenticationSupported then
     begin
       AddLog('');
       AddLog('* * * External athenticate');
@@ -727,8 +727,7 @@ begin
   TLVSelectedApp.Clear;
   FCIPTSelectedApp.Valid := false;
   FSelectedAID := '';
-  GPORes1.Valid := false;
-  GPORes2.Valid := false;
+  GPORes.Clear;
   AFLList.Clear;
   DAInput := '';
   DataAuthCode9F45 := '';
@@ -752,7 +751,7 @@ begin
       if SDATagList.Items[i] <> #$82 then
         Result := Result + AFLListGetParam(SDATagList.Items[i])
       else
-        Result := Result + GPORes1.sAIP;
+        Result := Result + GPORes.sAIP;
 end;
 
 constructor TEMV.Create;
@@ -1126,7 +1125,7 @@ begin
 
   AddLog('* * * Cryptogram verification ARQC');
 
-  RawDataARQC := CDOL1.SerializeValues + GPORes1.sAIP + resAC.sATC;
+  RawDataARQC := CDOL1.SerializeValues + GPORes.sAIP + resAC.sATC;
   if resAC.sIAD <> '' then RawDataARQC := RawDataARQC + Copy(resAC.sIAD, 4, length(resAC.sIAD));
   AddLog('Raw ARQC: ' + Bin2HexExt(RawDataARQC, true, true));
 
@@ -1357,34 +1356,20 @@ begin
 
   tlv := TTLV.Create;
   try
-    case data[1] of
-    #$80: // 80 Response Message Template Format 1
-      begin
-        GPORes1.Deserialize(data);
-        if LoggingTLV then AddLog(GPORes1.DecodeStr);
-      end;
-    #$77: // 77 Response Message Template Format 2
-      begin
-        tlv.Deserealize(data);
-        if LoggingTLV then AddLog(tlv.GetStrTree);
-        GPORes2.Deserialize(tlv);
+    tlv.Deserealize(data);
+    if LoggingTLV then AddLog(tlv.GetStrTree);
 
-        // TODO!!!!!
-
-      end;
-
-    else
-      exit;
-    end;
+    GPORes.Deserialize(tlv);
+    if LoggingTLV then AddLog(GPORes.DecodeStr);
 
     DAInput := '';
     AddLog('* * * Read records from AFL');
-    for i := 0 to length(GPORes1.AFL) - 1 do
+    for i := 0 to length(GPORes.AFL) - 1 do
     begin
-      for j := GPORes1.AFL[i].StartRecN to GPORes1.AFL[i].EndRecN do
+      for j := GPORes.AFL[i].StartRecN to GPORes.AFL[i].EndRecN do
       begin
-        AddLog('SFI: 0x' + IntToHex(GPORes1.AFL[i].SFI, 2) + ' rec num:' + IntToStr(j));
-        data := FpcscC.ReadSFIRecord(GPORes1.AFL[i].SFI, j, sw);
+        AddLog('SFI: 0x' + IntToHex(GPORes.AFL[i].SFI, 2) + ' rec num:' + IntToStr(j));
+        data := FpcscC.ReadSFIRecord(GPORes.AFL[i].SFI, j, sw);
         AddLog('****' + Bin2HexExt(data, true, true));
         if sw <> $9000 then
         begin
@@ -1404,11 +1389,11 @@ begin
         AFLList.Add(atlv);
 
         // make DA input data
-        if (GPORes1.AFL[i].OfflineCount > 0) and
-           (GPORes1.AFL[i].OfflineCount + GPORes1.AFL[i].StartRecN > j) then
+        if (GPORes.AFL[i].OfflineCount > 0) and
+           (GPORes.AFL[i].OfflineCount + GPORes.AFL[i].StartRecN > j) then
         begin
           // EMV 4.3 book3 10.3, page 96
-          if GPORes1.AFL[i].SFI <= 10 then
+          if GPORes.AFL[i].SFI <= 10 then
             DAInput := DAInput + atlv.Value  // only value
           else
             DAInput := DAInput + data;       // full data
@@ -1852,19 +1837,17 @@ begin
   Result := #$83 + AnsiChar(len) + Result;
 end;
 
-{ tlvRespTmplF2 }
-
-function tlvRespTmplGPO2.Deserialize(elm: TTLV): boolean;
-begin
-  Result := false;
-  Valid := false;
-
-
-end;
 
 { tlvRespTmplF1 }
 
-function tlvRespTmplGPO1.DecodeStr: string;
+procedure tlvRespTmplGPO.Clear;
+begin
+  Valid := false;
+  AIP.Valid := false;
+  SetLength(AFL, 0);
+end;
+
+function tlvRespTmplGPO.DecodeStr: string;
 var
   i: Integer;
 begin
@@ -1879,26 +1862,13 @@ begin
       ' offl:' + IntToStr(AFL[i].OfflineCount) + #$0D#$0A;
 end;
 
-function tlvRespTmplGPO1.Deserialize(data: AnsiString): boolean;
+function tlvRespTmplGPO.ExtractDataFromStr: boolean;
 var
   i: Integer;
 begin
-  Valid := false;
   Result := false;
-  AIP.Valid := false;
-  SetLength(AFL, 0);
-
-  if (length(data) < 5) or
-     (data[1] <> #$80) or
-     (byte(data[2]) <> length(data) - 2)
-  then exit;
-
-  sAIP := Copy(data, 3, 2);
-  sAFL := Copy(data, 5, length(data));
-
   if (length(sAIP) <> 2) or
-     ((length(sAFL) mod 4) <> 0)
-  then exit;
+     ((length(sAFL) mod 4) <> 0) then exit;
 
   if not AIP.Deserialize(sAIP) then exit;
 
@@ -1908,8 +1878,54 @@ begin
     if not AFL[Length(AFL) - 1].Deserialize(Copy(sAFL, 1 + i * 4, 4)) then exit;
   end;
 
-  Valid := true;
   Result := true;
+end;
+
+function tlvRespTmplGPO.Deserialize(elm: TTLV): boolean;
+begin
+  Result := false;
+  Valid := false;
+
+  Clear;
+
+  if elm = nil then exit;
+
+  // 80 Response Message Template Format 1
+  if elm.Tag = #$80 then Result := DeserializeF80(elm.Value);
+
+  // 77 Response Message Template Format 2
+  if elm.Tag = #$77 then Result := DeserializeF77(elm);
+
+  Valid := Result;
+end;
+
+function tlvRespTmplGPO.DeserializeF77(elm: TTLV): boolean;
+begin
+  Result := false;
+  Clear;
+
+  // 82: Application Interchange Profile (AIP)
+  if not elm.GetPathValue([#$82], sAIP) then exit;
+
+  // 94: Application File Locator (AFL)
+  if not elm.GetPathValue([#$94], sAFL) then exit;
+
+  Result := ExtractDataFromStr;
+  Valid := Result;
+end;
+
+function tlvRespTmplGPO.DeserializeF80(data: AnsiString): boolean;
+begin
+  Result := false;
+  Clear;
+
+  if (length(data) < 5) then exit;
+
+  sAIP := Copy(data, 1, 2);
+  sAFL := Copy(data, 3, length(data));
+
+  Result := ExtractDataFromStr;
+  Valid := Result;
 end;
 
 { rAIP }
