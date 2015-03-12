@@ -8,11 +8,15 @@ uses
 
 const
   ConstAIDList: array of string = [
+    // VISA
     'A0000000031010',
     'A0000000032010',
     'A0000000033010',
     'A0000000038010',
-    'A0000000038002'];
+    'A0000000038002',
+
+    // MasterCard
+    'A0000000041010'];
 
 type
   TagsEnum = (teUnknown,

@@ -30,6 +30,7 @@ type
     cbIgnoreCVM: TCheckBox;
     cbTransactionType: TComboBox;
     Label3: TLabel;
+    cbPSEForce: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure btRunClick(Sender: TObject);
     procedure btRefreshClick(Sender: TObject);
@@ -158,7 +159,12 @@ begin
       emv.GetAIDsByPSE('1PAY.SYS.DDF01');
       emv.GetAIDsByPSE('2PAY.SYS.DDF01');
 
-      emv.AIDList.Clear; // !!!!!!!!!!!!! TEST !!!!!!!!!!!!!!!!!
+      if cbPSEForce.Checked then
+      begin
+        emv.AIDList.Clear;
+        AddLog('PSE cleared.');
+      end;
+
       if emv.AIDList.Count < 1 then
       begin
         AddLog('');
