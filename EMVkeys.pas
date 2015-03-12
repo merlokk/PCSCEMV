@@ -6,6 +6,8 @@ uses
   Chiphers, defs;
 
 // technologypartner.visa.com/download.aspx?id=34
+// https://www.paypass.com/PP_Imp_Guides/PayPass_v3_TTAL2-Testing%20Env_26Feb2013.pdf
+// https://github.com/binaryfoo/emv-bertlv/tree/master/src/main/resources
 type
   TVSDCPublicKey = packed record
     RID: string;
@@ -18,7 +20,7 @@ type
   end;
 
 const
-  VSDCPublicKeys: array [0..3] of TVSDCPublicKey = (
+  VSDCPublicKeys: array [0..9] of TVSDCPublicKey = (
     // 1. VSDC CA Production Public Keys
 
     // The 1408-bit VSDC CA Production Public Key is currently considered to have an anticipated lifetime
@@ -105,7 +107,109 @@ const
    Exponent: '03';
    Hash: 'C4 A3 C4 3C CF 87 32 7D 13 6B 80 41 60 E4 7D' +
          '43 B6 0E 6E 0F';
+   ),
+
+    // MASTERCARD A0 00 00 00 04
+
+   (RID:'A0 00 00 00 04';
+   Index:$00;
+   Modulus: '9C 6B E5 AD B1 0B 4B E3 DC E2 09 9B 4B 21 06 72' +
+            'B8 96 56 EB A0 91 20 4F 61 3E CC 62 3B ED C9 C6' +
+            'D7 7B 66 0E 8B AE EA 7F 7C E3 0F 1B 15 38 79 A4' +
+            'E3 64 59 34 3D 1F E4 7A CD BD 41 FC D7 10 03 0C' +
+            '2B A1 D9 46 15 97 98 2C 6E 1B DD 08 55 4B 72 6F' +
+            '5E FF 79 13 CE 59 E7 9E 35 72 95 C3 21 E2 6D 0B' +
+            '8B E2 70 A9 44 23 45 C7 53 E2 AA 2A CF C9 D3 08' +
+            '50 60 2F E6 CA C0 0C 6D DF 6B 8D 9D 9B 48 79 B2' +
+            '82 6B 04 2A 07 F0 E5 AE 52 6A 3D 3C 4D 22 C7 2B' +
+            '9E AA 52 EE D8 89 38 66 F8 66 38 7A C0 5A 13 99';
+   Exponent: '03';
+   Hash: 'EC 0A 59 D3 5D 19 F0 31 E9 E8 CB EC 56 DB 80 E2 2B 1D E1 30';
+   ),
+
+   (RID:'A0 00 00 00 04';
+   Index:$01;
+   Modulus: 'C6 96 03 42 13 D7 D8 54 69 84 57 9D 1D 0F 0E A5' +
+            '19 CF F8 DE FF C4 29 35 4C F3 A8 71 A6 F7 18 3F' +
+            '12 28 DA 5C 74 70 C0 55 38 71 00 CB 93 5A 71 2C' +
+            '4E 28 64 DF 5D 64 BA 93 FE 7E 63 E7 1F 25 B1 E5' +
+            'F5 29 85 75 EB E1 C6 3A A6 17 70 69 17 91 1D C2' +
+            'A7 5A C2 8B 25 1C 7E F4 0F 23 65 91 24 90 B9 39' +
+            'BC A2 12 4A 30 A2 8F 54 40 2C 34 AE CA 33 1A B6' +
+            '7E 1E 79 B2 85 DD 57 71 B5 D9 FF 79 EA 63 0B 75';
+   Exponent: '03';
+   Hash: '8C 05 A6 41 27 48 5B 92 3C 94 B6 3D 26 4A F0 BF 85 CB 45 D9';
+   ),
+
+   (RID:'A0 00 00 00 04';
+   Index:$05;
+   Modulus: 'B8 04 8A BC 30 C9 0D 97 63 36 54 3E 3F D7 09 1C' +
+            '8F E4 80 0D F8 20 ED 55 E7 E9 48 13 ED 00 55 5B' +
+            '57 3F EC A3 D8 4A F6 13 1A 65 1D 66 CF F4 28 4F' +
+            'B1 3B 63 5E DD 0E E4 01 76 D8 BF 04 B7 FD 1C 7B' +
+            'AC F9 AC 73 27 DF AA 8A A7 2D 10 DB 3B 8E 70 B2' +
+            'DD D8 11 CB 41 96 52 5E A3 86 AC C3 3C 0D 9D 45' +
+            '75 91 64 69 C4 E4 F5 3E 8E 1C 91 2C C6 18 CB 22' +
+            'DD E7 C3 56 8E 90 02 2E 6B BA 77 02 02 E4 52 2A' +
+            '2D D6 23 D1 80 E2 15 BD 1D 15 07 FE 3D C9 0C A3' +
+            '10 D2 7B 3E FC CD 8F 83 DE 30 52 CA D1 E4 89 38' +
+            'C6 8D 09 5A AC 91 B5 F3 7E 28 BB 49 EC 7E D5 97';
+   Exponent: '03';
+   Hash: 'EB FA 0D 5D 06 D8 CE 70 2D A3 EA E8 90 70 1D 45 E2 74 C8 45';
+   ),
+
+   (RID:'A0 00 00 00 04';
+   Index:$EF;
+   Modulus: 'A1 91 CB 87 47 3F 29 34 9B 5D 60 A8 8B 3E AE E0' +
+            '97 3A A6 F1 A0 82 F3 58 D8 49 FD DF F9 C0 91 F8' +
+            '99 ED A9 79 2C AF 09 EF 28 F5 D2 24 04 B8 8A 22' +
+            '93 EE BB C1 94 9C 43 BE A4 D6 0C FD 87 9A 15 39' +
+            '54 4E 09 E0 F0 9F 60 F0 65 B2 BF 2A 13 EC C7 05' +
+            'F3 D4 68 B9 D3 3A E7 7A D9 D3 F1 9C A4 0F 23 DC' +
+            'F5 EB 7C 04 DC 8F 69 EB A5 65 B1 EB CB 46 86 CD' +
+            '27 47 85 53 0F F6 F6 E9 EE 43 AA 43 FD B0 2C E0' +
+            '0D AE C1 5C 7B 8F D6 A9 B3 94 BA BA 41 9D 3F 6D' +
+            'C8 5E 16 56 9B E8 E7 69 89 68 8E FE A2 DF 22 FF' +
+            '7D 35 C0 43 33 8D EA A9 82 A0 2B 86 6D E5 32 85' +
+            '19 EB BC D6 F0 3C DD 68 66 73 84 7F 84 DB 65 1A' +
+            'B8 6C 28 CF 14 62 56 2C 57 7B 85 35 64 A2 90 C8' +
+            '55 6D 81 85 31 26 8D 25 CC 98 A4 CC 6A 0B DF FF' +
+            'DA 2D CC A3 A9 4C 99 85 59 E3 07 FD DF 91 50 06' +
+            'D9 A9 87 B0 7D DA EB 3B';   Exponent: '03';
+   Hash: '21 76 6E BB 0E E1 22 AF B6 5D 78 45 B7 3D B4 6B AB 65 42 7A ';
+   ),
+
+   (RID:'A0 00 00 00 04';
+   Index:$F1;
+   Modulus: 'A0 DC F4 BD E1 9C 35 46 B4 B6 F0 41 4D 17 4D DE' +
+            '29 4A AB BB 82 8C 5A 83 4D 73 AA E2 7C 99 B0 B0' +
+            '53 A9 02 78 00 72 39 B6 45 9F F0 BB CD 7B 4B 9C' +
+            '6C 50 AC 02 CE 91 36 8D A1 BD 21 AA EA DB C6 53' +
+            '47 33 7D 89 B6 8F 5C 99 A0 9D 05 BE 02 DD 1F 8C' +
+            '5B A2 0E 2F 13 FB 2A 27 C4 1D 3F 85 CA D5 CF 66' +
+            '68 E7 58 51 EC 66 ED BF 98 85 1F D4 E4 2C 44 C1' +
+            'D5 9F 59 84 70 3B 27 D5 B9 F2 1B 8F A0 D9 32 79' +
+            'FB BF 69 E0 90 64 29 09 C9 EA 27 F8 98 95 95 41' +
+            'AA 67 57 F5 F6 24 10 4F 6E 1D 3A 95 32 F2 A6 E5' +
+            '15 15 AE AD 1B 43 B3 D7 83 50 88 A2 FA FA 7B E7';   Exponent: '03';
+   Hash: 'D8 E6 8D A1 67 AB 5A 85 D8 C3 D5 5E CB 9B 05 17 A1 A5 B4 BB';
+   ),
+
+   (RID:'A0 00 00 00 04';
+   Index:$F3;
+   Modulus: '98 F0 C7 70 F2 38 64 C2 E7 66 DF 02 D1 E8 33 DF' +
+            'F4 FF E9 2D 69 6E 16 42 F0 A8 8C 56 94 C6 47 9D' +
+            '16 DB 15 37 BF E2 9E 4F DC 6E 6E 8A FD 1B 0E B7' +
+            'EA 01 24 72 3C 33 31 79 BF 19 E9 3F 10 65 8B 2F' +
+            '77 6E 82 9E 87 DA ED A9 C9 4A 8B 33 82 19 9A 35' +
+            '0C 07 79 77 C9 7A FF 08 FD 11 31 0A C9 50 A7 2C' +
+            '3C A5 00 2E F5 13 FC CC 28 6E 64 6E 3C 53 87 53' +
+            '5D 50 95 14 B3 B3 26 E1 23 4F 9C B4 8C 36 DD D4' +
+            '4B 41 6D 23 65 40 34 A6 6F 40 3B A5 11 C5 EF A3';
+   Exponent: '03';
+   Hash: 'A6 9A C7 60 3D AF 56 6E 97 2D ED C2 CB 43 3E 07 E8 B0 1A 9A';
    )
+
   );
 
 implementation
