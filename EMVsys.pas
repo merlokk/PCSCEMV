@@ -950,21 +950,15 @@ begin
   if length(res) = 0 then exit;
 
   tlv := TTLV.Create;
+  tlv.Deserealize(res);
+  if LoggingTLV then AddLog(tlv.GetStrTree);
   try
     case res[1] of
     #$80: // 80 Response Message Template Format 1
-      begin
-        tlv.Deserealize(res);
         Certificate := tlv.Value;
-      end;
+
     #$77: // 77 Response Message Template Format 2
-      begin
-        tlv.Deserealize(res);
-        if LoggingTLV then AddLog(tlv.GetStrTree);
-
         Certificate := tlv.FindPath([#$9F#$4B]).Value;
-      end;
-
     else
       exit;
     end;
