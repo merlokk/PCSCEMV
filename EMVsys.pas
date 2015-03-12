@@ -74,6 +74,7 @@ type
 
     Items: array of PDOLrec;
 
+    procedure FillData;
     function SetTagValue(Tag, Value: AnsiString): boolean;
     function Deserialize(elm: TTLV): boolean;
     function SerializeValues: AnsiString;
@@ -1020,6 +1021,10 @@ begin
     exit;
   end;
 
+  // fill CDOL with 0x00
+  CDOL1.FillData;
+  CDOL2.FillData;
+
   // make TVR
   tvr.Clear;
   if UseGoodTVR then
@@ -1639,7 +1644,9 @@ begin
   Result := Result and elm.GetPathValue([#$4F], AID);
 
   // 50 Application Label
-  Result := Result and elm.GetPathValue([#$50], ApplicationLabel);
+  elm.GetPathValue([#$50], ApplicationLabel);
+  if ApplicationLabel = '' then
+    ApplicationLabel := Bin2Hex(Copy(AID, 1, 5));
 
   // 87 Application Priority Indicator
   elm.GetPathValue([#$87], ApplicationPriority);
@@ -1772,6 +1779,16 @@ begin
 
   Result := true;
   Valid := true;
+end;
+
+procedure tlvPDOL.FillData;
+var
+  i: Integer;
+begin
+  if not Valid then exit;
+
+  for i := 0 to length(Items) - 1 do
+    Items[i].Value := AnsiString(StringOfChar(#00, Items[i].Len));
 end;
 
 function tlvPDOL.SerializeValues: AnsiString;
