@@ -25,6 +25,8 @@ type
     function CalculateARPC(PAN, PANSequence, RawData: AnsiString): AnsiString;
     function GetHostResponse: AnsiString;
 
+    function IssuerScriptCalcMAC(PAN, PANSequence, ATC, RawData: AnsiString): AnsiString;
+
     constructor Create;
     destructor Destroy; override;
   end;
@@ -101,6 +103,25 @@ begin
   Result := TChipher.TripleDesECBEncode(ATCblock, UDK);
 end;
 
+function TVirtualBank.IssuerScriptCalcMAC(PAN, PANSequence, ATC, RawData: AnsiString): AnsiString;
+var
+  SessionKey: AnsiString;
+begin
+  Result := '';
+  if RawData = '' then exit;
+
+  SessionKey := GetSessionKey(
+                   PAN,
+                   PANSequence,
+                   ATC,
+                   ktMAC);
+
+  if SessionKey = '' then exit;
+
+  Result := TChipher.DesMACEmv(RawData, SessionKey);
+  Result := Copy(Result, 1, 4); // first 4 bytes!
+end;
+
 function TVirtualBank.GetUDK(PAN, PANSeq: AnsiString; KeyType: TKeyType): AnsiString;
 begin
   Result := TKeyStorage.GetUDKKey(PAN, KeyType);
@@ -125,7 +146,7 @@ begin
   if length(UDKA) > 8 then
     UDKA := Copy(UDKA, 1 + (length(UDKA) - 8), length(UDKA));
   if length(UDKA) < 8 then
-    UDKA := UDKA + StringOfChar(#0, 8 - length(UDKA));
+    UDKA := UDKA + AnsiString(StringOfChar(#0, 8 - length(UDKA)));
 
   UDKB := UDKA;
 

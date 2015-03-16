@@ -18,7 +18,7 @@ function EMVIntegerDecode(s: AnsiString): int64;
 function EMVIntegerHexDecode(s: AnsiString): int64;
 
 function Hex2Bin(input: string): AnsiString;
-function Bin2HexExt(const input:AnsiString; const spaces, upcase: boolean): string;
+function Bin2HexExt(const input:AnsiString; const spaces: boolean = true; const upcase: boolean = true): string;
 function Bin2Hex(const input:AnsiString): string;
 
 function StrSafeInc(s: AnsiString; var indx: integer; incval: integer = 1): boolean;
@@ -112,7 +112,7 @@ begin
   Result := Bin2HexExt(input, false, true);
 end;
 
-function Bin2HexExt(const input:AnsiString; const spaces, upcase: boolean): string;
+function Bin2HexExt(const input:AnsiString; const spaces: boolean; const upcase: boolean): string;
 var
    loop      : integer;
    hexresult : string;

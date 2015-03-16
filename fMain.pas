@@ -253,43 +253,39 @@ begin
     if not emv.FillCDOLRecords(cbGoodTVR.Checked) then exit;
 
     //9F02:(Amount, Authorised (Numeric)) len:6
-    emv.CDOL1.SetTagValue(#$9F#$02, #$00#$00#$00#$00#$01#$00);
-    emv.CDOL2.SetTagValue(#$9F#$02, #$00#$00#$00#$00#$01#$00);
+    emv.CDOLSetTagValue(#$9F#$02, #$00#$00#$00#$00#$01#$00);
     //9F03:(Amount, Other (Numeric)) len:6
-    emv.CDOL1.SetTagValue(#$9F#$03, #$00#$00#$00#$00#$00#$00);
-    emv.CDOL2.SetTagValue(#$9F#$03, #$00#$00#$00#$00#$00#$00);
+    emv.CDOLSetTagValue(#$9F#$03, #$00#$00#$00#$00#$00#$00);
     //9F1A:(Terminal Country Code) len:2
-    emv.CDOL1.SetTagValue(#$9F#$1A, 'ru');
-    emv.CDOL2.SetTagValue(#$9F#$1A, 'ru');
+    emv.CDOLSetTagValue(#$9F#$1A, 'ru');
     //5F2A:(Transaction Currency Code) len:2
-    emv.CDOL1.SetTagValue(#$5F#$2A, #$09#$99);  // rub
-    emv.CDOL2.SetTagValue(#$5F#$2A, #$09#$99);  // rub
+    emv.CDOLSetTagValue(#$5F#$2A, #$09#$99);  // n/a
     //9A:(Transaction Date) len:3
-    emv.CDOL1.SetTagValue(#$9A, #$00#$00#$00);
-    emv.CDOL2.SetTagValue(#$9A, #$00#$00#$00);
+    emv.CDOLSetTagValue(#$9A, #$00#$00#$00);
     //9C:(Transaction Type) len:1   |  00 => Goods and service #01 => Cash
-    emv.CDOL1.SetTagValue(#$9C, #$00);
-    emv.CDOL2.SetTagValue(#$9C, #$00);
+    emv.CDOLSetTagValue(#$9C, #$00);
     //9F37:(Unpredictable Number) len:4
-    emv.CDOL1.SetTagValue(#$9F#$37, emv.RandomNumber);
-    emv.CDOL2.SetTagValue(#$9F#$37, emv.RandomNumber);
+    emv.CDOLSetTagValue(#$9F#$37, emv.RandomNumber);
     // 9f45 Data Authentication Code
     if emv.DataAuthCode9F45 <> '' then
-    begin
-      emv.CDOL1.SetTagValue(#$9F#$45, emv.DataAuthCode9F45);
-      emv.CDOL2.SetTagValue(#$9F#$45, emv.DataAuthCode9F45);
-    end
+      emv.CDOLSetTagValue(#$9F#$45, emv.DataAuthCode9F45)
     else
-    begin
-      emv.CDOL1.SetTagValue(#$9F#$45, emv.AFLListGetParam(#$9F#$45));
-      emv.CDOL2.SetTagValue(#$9F#$45, emv.AFLListGetParam(#$9F#$45));
-    end;
+      if emv.AFLListGetParam(#$9F#$45) <> '' then
+        emv.CDOLSetTagValue(#$9F#$45, emv.AFLListGetParam(#$9F#$45));
 
     // AC
     bank := TVirtualBank.Create;
     if not emv.AC(bank, trType) then exit;
-    bank.Free;
 
+    // Issuer scripts processing
+
+    AddLog('* * * Issuer script processing');
+
+    // unblock PIN
+    AddLog('* Unblock PIN');
+    emv.RunSimpleIssuerScript(#$24, bank);
+
+    bank.Free;
 
     finally
       emv.Free;
@@ -302,6 +298,7 @@ begin
     end;
 
   except
+    AddLog('-- EMV processing exception!!!');
   end;
 end;
 

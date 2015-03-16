@@ -201,7 +201,7 @@ type
 
   // 80 AC Response Message Template Format 1
   // 77 AC Response Message Template Format 2
-  tlvRespTmplAC1 = packed record
+  tlvRespTmplAC = packed record
     Valid: boolean;
 
     CID: rSID;
@@ -382,6 +382,10 @@ type
 
     TVR: rTVR;
 
+    ACResult: tlvRespTmplAC;
+    ARQC,
+    HashARQC: AnsiString;
+
     property SelectedAID: AnsiString read GetSelectedAID;
 
     procedure GetAIDsByPSE(PseAID: AnsiString);
@@ -398,6 +402,7 @@ type
 
     function AFLListGetParam(Tag: AnsiString): AnsiString;
     function AFLListGetTag(Tag: AnsiString): TTLV;
+    function CDOLSetTagValue(Tag, Value: AnsiString): boolean;
     function GetStaticDataAuthTagList: AnsiString;
     function SDA: boolean;
     function DDA: boolean;
@@ -408,7 +413,9 @@ type
 
     function FillCDOLRecords(UseGoodTVR: boolean): boolean;
     function AC(bank: TVirtualBank; TransType: TTransactionType): boolean;
-    function GenerateAC(sid: rSID; FirstAC: boolean; bank: TVirtualBank; var resAC: tlvRespTmplAC1): boolean;
+    function GenerateAC(sid: rSID; FirstAC: boolean; bank: TVirtualBank; var resAC: tlvRespTmplAC): boolean;
+
+    function RunSimpleIssuerScript(cmd: AnsiChar; bank: TVirtualBank): boolean;
 
     constructor Create(pcscC: TPCSCConnector);
     destructor Destroy; override;
@@ -618,7 +625,6 @@ var
   res: AnsiString;
   sid: rSID;
   i: Integer;
-  resAC: tlvRespTmplAC1;
 begin
   Result := false;
   AddLog('* * * Generate First AC');
@@ -631,7 +637,7 @@ begin
     sid.ACT := tdARQC; // request for online transaction
 
   // AC plus crypto check
-  if not GenerateAC(sid, true, bank, resAC) then exit;
+  if not GenerateAC(sid, true, bank, ACResult) then exit;
 
   AddLog('');
   AddLog('* * * Processing online request');
@@ -644,7 +650,7 @@ begin
   // add authorization response code to CDOL2 for Generate AC2
   CDOL2.SetTagValue(#$8A, ARC);
 
-  RawDataARPC := resAC.AC;
+  RawDataARPC := ACResult.AC;
   for i := 1 to length(RawDataARPC) do
   begin
     RawDataARPC[i] := AnsiChar(byte(RawDataARPC[i]) xor byte(ARC[i]));
@@ -669,7 +675,7 @@ begin
   AddLog('ARPC: ' + Bin2HexExt(res, true, true));
 
   // IT needs to send AC2 command
-  if resAC.CID.ACT = tdARQC then
+  if ACResult.CID.ACT = tdARQC then
   begin
     // external authenticate
     if GPORes.AIP.IssuerAuthenticationSupported then
@@ -697,7 +703,7 @@ begin
     sid.ACT := tdTC; // request for online transaction
 
     // AC plus crypto check
-    if not GenerateAC(sid, false, bank, resAC) then exit;
+    if not GenerateAC(sid, false, bank, ACResult) then exit;
   end;
 
   Result := true;
@@ -725,6 +731,13 @@ begin
   end;
 end;
 
+function TEMV.CDOLSetTagValue(Tag, Value: AnsiString): boolean;
+begin
+  Result := true;
+  Result := Result and CDOL1.SetTagValue(Tag, Value);
+  Result := Result and CDOL2.SetTagValue(Tag, Value);
+end;
+
 procedure TEMV.Clear;
 begin
   LoggingTLV := false;
@@ -747,6 +760,10 @@ begin
   CDOL2.Valid := false;
 
   TVR.Clear;
+
+  ACResult.Clear;
+  ARQC := '';
+  HashARQC := '';
 end;
 
 function TEMV.GetStaticDataAuthTagList: AnsiString;
@@ -1045,13 +1062,12 @@ begin
   end;
 
   //95:(Terminal Verification Results) len:5
-  CDOL1.SetTagValue(#$95, tvr.Serialize);
-  CDOL2.SetTagValue(#$95, tvr.Serialize);
+  CDOLSetTagValue(#$95, tvr.Serialize);
 
   Result := true;
 end;
 
-function TEMV.GenerateAC(sid: rSID; FirstAC: boolean; bank: TVirtualBank; var resAC: tlvRespTmplAC1): boolean;
+function TEMV.GenerateAC(sid: rSID; FirstAC: boolean; bank: TVirtualBank; var resAC: tlvRespTmplAC): boolean;
 Var
   ICCDynamicNumber,
   RawDataARQC,
@@ -1061,6 +1077,9 @@ Var
   tlv: TTLV;
 begin
   Result := false;
+  ACResult.Clear;
+  ARQC := '';
+  HashARQC := '';
 
   // get random number from card
   ICCDynamicNumber := FpcscC.GetChallenge(sw);
@@ -1144,9 +1163,14 @@ begin
            AFLListGetParam(#$5A),     // PAN
            AFLListGetParam(#$5F#$34), // PAN Sequence Number
            RawDataARQC);
+
   AddLog('Hash raw ARQC: ' + Bin2HexExt(res, true, true));
   if res = resAC.AC then
-    AddLog('Cryptogram verification passed')
+  begin
+    ARQC := RawDataARQC;
+    HashARQC := res;
+    AddLog('Cryptogram verification passed');
+  end
   else
   begin
     AddLog('Cryptogram verification failed');
@@ -1158,7 +1182,6 @@ begin
     tdAAC:
       begin
         AddLog('Transaction declined.');
-        exit;
       end;
     tdTC:
       begin
@@ -1166,7 +1189,6 @@ begin
           AddLog('Transaction approved offline.')
         else
           AddLog('Transaction approved online.');
-        exit;
       end;
   end;
 
@@ -1579,6 +1601,30 @@ begin
   // todo
 
   Result := true;
+end;
+
+function TEMV.RunSimpleIssuerScript(cmd: AnsiChar; bank: TVirtualBank): boolean;
+var
+  command,
+  data,
+  mac: Ansistring;
+  sw: word;
+begin
+  Result := false;
+  if ARQC = '' then exit;
+
+  command := #$84 + cmd + #$00#$00 + #$04;
+  mac := bank.IssuerScriptCalcMAC(
+         AFLListGetParam(#$5A),     // PAN
+         AFLListGetParam(#$5F#$34), // PAN Sequence Number
+         ACResult.sATC,             // Application Transaction Counter
+         command + ACResult.sATC + ARQC); // MAC raw data
+  data := mac;
+
+  AddLog('Issuer command: ' + Bin2HexExt(command + data, true, true));
+  FpcscC.GetResponseFromCard(command, data, sw);
+  AddLog('Result: ' + IntToHex(sw, 4));
+  Result := sw = $9000;
 end;
 
 function TEMV.SDA: boolean;
@@ -2640,7 +2686,7 @@ end;
 
 { tlvRespTmplAC1 }
 
-function tlvRespTmplAC1.DecodeStr: string;
+function tlvRespTmplAC.DecodeStr: string;
 begin
   Result := 'Cryptogram Information Data (CID):' + CID.DecodeStr + #$0D#$0A +
     'Application Transaction Counter (ATC):' + IntToStr(ATC) + #$0D#$0A +
@@ -2649,7 +2695,7 @@ begin
      Result := Result + 'Issuer Application Data (IAD):' + Bin2HexExt(sIAD, true, true) + #$0D#$0A + IAD.DecodeStr;
 end;
 
-procedure tlvRespTmplAC1.Clear;
+procedure tlvRespTmplAC.Clear;
 begin
   sCID := '';
   sATC := '';
@@ -2660,7 +2706,7 @@ begin
   IAD.Valid := false;
 end;
 
-function tlvRespTmplAC1.DeserializeF80(data: AnsiString): boolean;
+function tlvRespTmplAC.DeserializeF80(data: AnsiString): boolean;
 begin
   Result := false;
   Valid := false;
@@ -2746,7 +2792,7 @@ begin
   Raw := Result;
 end;
 
-function tlvRespTmplAC1.Deserialize(elm: TTLV): boolean;
+function tlvRespTmplAC.Deserialize(elm: TTLV): boolean;
 begin
   Result := false;
   Valid := false;
@@ -2764,7 +2810,7 @@ begin
   Valid := Result;
 end;
 
-function tlvRespTmplAC1.DeserializeF77(elm: TTLV): boolean;
+function tlvRespTmplAC.DeserializeF77(elm: TTLV): boolean;
 begin
   Result := false;
   Valid := false;
