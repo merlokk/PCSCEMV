@@ -382,9 +382,8 @@ type
 
     TVR: rTVR;
 
-    ACResult: tlvRespTmplAC;
-    ARQC,
-    HashARQC: AnsiString;
+    AC1Result,
+    AC2Result: tlvRespTmplAC;
 
     property SelectedAID: AnsiString read GetSelectedAID;
 
@@ -637,7 +636,7 @@ begin
     sid.ACT := tdARQC; // request for online transaction
 
   // AC plus crypto check
-  if not GenerateAC(sid, true, bank, ACResult) then exit;
+  if not GenerateAC(sid, true, bank, AC1Result) then exit;
 
   AddLog('');
   AddLog('* * * Processing online request');
@@ -650,7 +649,7 @@ begin
   // add authorization response code to CDOL2 for Generate AC2
   CDOL2.SetTagValue(#$8A, ARC);
 
-  RawDataARPC := ACResult.AC;
+  RawDataARPC := AC1Result.AC;
   for i := 1 to length(RawDataARPC) do
   begin
     RawDataARPC[i] := AnsiChar(byte(RawDataARPC[i]) xor byte(ARC[i]));
@@ -675,7 +674,7 @@ begin
   AddLog('ARPC: ' + Bin2HexExt(res, true, true));
 
   // IT needs to send AC2 command
-  if ACResult.CID.ACT = tdARQC then
+  if AC1Result.CID.ACT = tdARQC then
   begin
     // external authenticate
     if GPORes.AIP.IssuerAuthenticationSupported then
@@ -703,7 +702,7 @@ begin
     sid.ACT := tdTC; // request for online transaction
 
     // AC plus crypto check
-    if not GenerateAC(sid, false, bank, ACResult) then exit;
+    if not GenerateAC(sid, false, bank, AC2Result) then exit;
   end;
 
   Result := true;
@@ -761,9 +760,8 @@ begin
 
   TVR.Clear;
 
-  ACResult.Clear;
-  ARQC := '';
-  HashARQC := '';
+  AC1Result.Clear;
+  AC2Result.Clear;
 end;
 
 function TEMV.GetStaticDataAuthTagList: AnsiString;
@@ -1077,9 +1075,7 @@ Var
   tlv: TTLV;
 begin
   Result := false;
-  ACResult.Clear;
-  ARQC := '';
-  HashARQC := '';
+  resAC.Clear;
 
   // get random number from card
   ICCDynamicNumber := FpcscC.GetChallenge(sw);
@@ -1167,8 +1163,6 @@ begin
   AddLog('Hash raw ARQC: ' + Bin2HexExt(res, true, true));
   if res = resAC.AC then
   begin
-    ARQC := RawDataARQC;
-    HashARQC := res;
     AddLog('Cryptogram verification passed');
   end
   else
@@ -1397,6 +1391,9 @@ begin
 
     DAInput := '';
     AddLog('* * * Read records from AFL');
+    if length(GPORes.AFL) = 0 then
+      AddLog('AFL is empty!');
+
     for i := 0 to length(GPORes.AFL) - 1 do
     begin
       for j := GPORes.AFL[i].StartRecN to GPORes.AFL[i].EndRecN do
@@ -1611,20 +1608,21 @@ var
   sw: word;
 begin
   Result := false;
-  if ARQC = '' then exit;
+  if not AC1Result.Valid then exit;
 
   command := #$84 + cmd + #$00#$00 + #$04;
   mac := bank.IssuerScriptCalcMAC(
          AFLListGetParam(#$5A),     // PAN
          AFLListGetParam(#$5F#$34), // PAN Sequence Number
-         ACResult.sATC,             // Application Transaction Counter
-         command + ACResult.sATC + ARQC); // MAC raw data
+         AC1Result.sATC,             // Application Transaction Counter
+         command + AC1Result.sATC + AC1Result.AC); // MAC raw data
   data := mac;
 
+  AddLog('MAC data: ' + Bin2HexExt(command + AC1Result.sATC + AC1Result.AC, true, true));
   AddLog('Issuer command: ' + Bin2HexExt(command + data, true, true));
   FpcscC.GetResponseFromCard(command, data, sw);
   AddLog('Result: ' + IntToHex(sw, 4));
-  Result := sw = $9000;
+  Result := (Hi(sw) = $90) or (Hi(sw) = $62) or (Hi(sw) = $63);
 end;
 
 function TEMV.SDA: boolean;
@@ -2069,7 +2067,7 @@ begin
   if not elm.GetPathValue([#$82], sAIP) then exit;
 
   // 94: Application File Locator (AFL)
-  if not elm.GetPathValue([#$94], sAFL) then exit;
+  elm.GetPathValue([#$94], sAFL);  // AFL may be empty!
 
   Result := ExtractDataFromStr;
   Valid := Result;

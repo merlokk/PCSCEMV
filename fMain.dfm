@@ -177,9 +177,9 @@ object fPOS: TfPOS
       Width = 145
       Height = 24
       Style = csDropDownList
-      ItemIndex = 0
+      ItemIndex = 1
       TabOrder = 16
-      Text = 'Offline'
+      Text = 'Online'
       Items.Strings = (
         'Offline'
         'Online')
@@ -203,7 +203,5 @@ object fPOS: TfPOS
     Align = alClient
     ScrollBars = ssVertical
     TabOrder = 1
-    ExplicitTop = 201
-    ExplicitHeight = 519
   end
 end

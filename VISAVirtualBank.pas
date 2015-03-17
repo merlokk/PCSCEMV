@@ -105,10 +105,15 @@ end;
 
 function TVirtualBank.IssuerScriptCalcMAC(PAN, PANSequence, ATC, RawData: AnsiString): AnsiString;
 var
-  SessionKey: AnsiString;
+  SessionKey,
+  data: AnsiString;
 begin
   Result := '';
-  if RawData = '' then exit;
+  if (RawData = '') or (ATC = '') then exit;
+
+  data := RawData;
+  if length(data) mod 8 <> 0 then
+    data := data + #$80;
 
   SessionKey := GetSessionKey(
                    PAN,
@@ -118,7 +123,7 @@ begin
 
   if SessionKey = '' then exit;
 
-  Result := TChipher.DesMACEmv(RawData, SessionKey);
+  Result := TChipher.DesMACEmv(data, SessionKey);
   Result := Copy(Result, 1, 4); // first 4 bytes!
 end;
 
