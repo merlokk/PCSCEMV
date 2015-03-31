@@ -156,6 +156,12 @@ type
     function    GetResponseFromCard(const apdu: AnsiString): AnsiString; overload;
     function    GetResponseFromCard(const command: AnsiString; var data: AnsiString; var sw: word): boolean; overload;
 
+    function    NXPBoot(var sw: Word): boolean;
+    function    NXPProtect(var sw: Word): boolean;
+    function    NXPFuse(var sw: Word): boolean;
+    function    NXPRead(addr: cardinal; len: byte; var sw: Word): AnsiString;
+    function    NXPWrite(addr: cardinal; len: byte; data: AnsiString; var sw: Word): AnsiString;
+
     function    CardSelect(const aid: AnsiString; var sw: Word): AnsiString;
     function    ReadSFIRecord(sfi, rnum: byte; var sw: Word): AnsiString;
     function    GetData(id: AnsiString; var sw: Word): AnsiString;
@@ -306,6 +312,65 @@ begin
       end;
     end
     else Msg.Result := DefWindowProc(NotifyHandle, Msg.Msg, Msg.WParam, Msg.LParam);
+end;
+
+function TPCSCConnector.NXPBoot(var sw: Word): boolean;
+var
+  res: AnsiString;
+begin
+  Result := false;
+  if not GetResponseFromCard(#$00#$F0#$00#$00, res, sw) then exit;
+
+  if sw = $9000 then Result := true;
+end;
+
+function TPCSCConnector.NXPFuse(var sw: Word): boolean;
+var
+  res: AnsiString;
+begin
+  Result := false;
+  if not GetResponseFromCard(#$00#$00#$00#$00, res, sw) then exit;
+
+  if sw = $9000 then Result := true;
+end;
+
+function TPCSCConnector.NXPProtect(var sw: Word): boolean;
+var
+  res: AnsiString;
+begin
+  Result := false;
+  if not GetResponseFromCard(#$00#$10#$00#$00, res, sw) then exit;
+
+  if sw = $9000 then Result := true;
+end;
+
+function TPCSCConnector.NXPRead(addr: cardinal; len: byte; var sw: Word): AnsiString;
+var
+  a0,a1,a2: AnsiChar;
+begin
+  Result := '';
+
+  a0 := AnsiChar((addr and $0000FF));
+  a1 := AnsiChar((addr and $00FF00) shr 8);
+  a2 := AnsiChar((addr and $FF0000) shr 16);
+
+  if not GetResponseFromCard(a2 + #$B0 + a1 + a0 + AnsiChar(len), Result, sw) then
+    Result := '';
+end;
+
+function TPCSCConnector.NXPWrite(addr: cardinal; len: byte; data: AnsiString;
+  var sw: Word): AnsiString;
+var
+  a0,a1,a2: AnsiChar;
+begin
+  Result := data;
+
+  a0 := AnsiChar((addr and $0000FF));
+  a1 := AnsiChar((addr and $00FF00) shr 8);
+  a2 := AnsiChar((addr and $FF0000) shr 16);
+
+  if not GetResponseFromCard(a2 + #$D6 + a1 + a0 + AnsiChar(len), Result, sw) then
+    Result := '';
 end;
 
 constructor TPCSCConnector.Create(AOwner: TComponent);

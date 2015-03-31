@@ -100,7 +100,10 @@ begin
   for i := length(ATCblock) - length(ATC) + 1 to length(ATCblock) do
     ATCblock[i] := AnsiChar(byte(ATCblock[i]) xor $FF);
 
-  Result := TChipher.TripleDesECBEncode(ATCblock, UDK);
+  if length(ATCblock) <> length(UDK) then exit;
+
+  for i := 1 to length(ATCblock) do
+    Result := Result + AnsiChar(byte(ATCblock[i]) xor byte(UDK[i]));
 end;
 
 function TVirtualBank.IssuerScriptCalcMAC(PAN, PANSequence, ATC, RawData: AnsiString): AnsiString;
@@ -114,6 +117,9 @@ begin
   data := RawData;
   if length(data) mod 8 <> 0 then
     data := data + #$80;
+
+  while length(data) mod 8 <> 0 do
+    data := data + #$00; // modify here to multiple 0x00
 
   SessionKey := GetSessionKey(
                    PAN,

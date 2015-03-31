@@ -20,8 +20,25 @@ type
   end;
 
 const
-  VSDCPublicKeys: array [0..9] of TVSDCPublicKey = (
+  VSDCPublicKeys: array [0..10] of TVSDCPublicKey = (
     // 1. VSDC CA Production Public Keys
+
+    // The 1152-bit VSDC CA Production Public Key is scheduled to expire on 31 December 2017.
+    // VSDC Issuer Public Key Certificates for this key must expire on or before 31 December 2017.
+   (RID:'A0 00 00 00 03';
+   Index:$07;
+   Modulus: 'A8 9F 25 A5 6F A6 DA 25 8C 8C A8 B4 04 27 D9 27' +
+            'B4 A1 EB 4D 7E A3 26 BB B1 2F 97 DE D7 0A E5 E4' +
+            '48 0F C9 C5 E8 A9 72 17 71 10 A1 CC 31 8D 06 D2' +
+            'F8 F5 C4 84 4A C5 FA 79 A4 DC 47 0B B1 1E D6 35' +
+            '69 9C 17 08 1B 90 F1 B9 84 F1 2E 92 C1 C5 29 27' +
+            '6D 8A F8 EC 7F 28 49 20 97 D8 CD 5B EC EA 16 FE' +
+            '40 88 F6 CF AB 4A 1B 42 32 8A 1B 99 6F 92 78 B0' +
+            'B7 E3 31 1C A5 EF 85 6C 2F 88 84 74 B8 36 12 A8' +
+            '2E 4E 00 D0 CD 40 69 A6 78 31 40 43 3D 50 72 5F';
+   Exponent: '03';
+   Hash: 'B4 BC 56 CC 4E 88 32 49 32 CB C6 43 D6 89 8F 6F E5 93 B1 72 ';
+   ),
 
     // The 1408-bit VSDC CA Production Public Key is currently considered to have an anticipated lifetime
     // to at least 31 December 2024

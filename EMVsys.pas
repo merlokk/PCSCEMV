@@ -930,6 +930,7 @@ begin
   CertICC.CKeySize := IssuerPublicKey.Size;
   CertICC.CRemainder := AFLListGetParam(#$9F#$48);
   CertICC.CExponent := AFLListGetParam(#$9F#$47);
+  if CertICC.CExponent = '' then CertICC.CExponent := #$03;
   // get 9F4A Static Data Authentication Tag List
   CertICC.CSDATagList := GetStaticDataAuthTagList;
 
@@ -2421,7 +2422,12 @@ begin
   pk := TChipher.SHA1Hash(pk);
 
 	// Step 7: Compare recovered hash with generated hash
-  if pk <> Hash then exit;
+  if pk <> Hash then
+  begin
+    AddLog('Hash error. calc=' + Bin2HexExt(pk, false, true) +
+             ' from sert=' + Bin2HexExt(Hash, false, true));
+    exit;
+  end;
 
 	// Step 8: Verify that the Issuer Identifier matches the lefmost 3-8 PAN digits
   pk := AnsiString(Bin2HexExt(CPAN, false, true));
