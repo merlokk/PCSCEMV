@@ -37,11 +37,18 @@ object fPOS: TfPOS
       Caption = 'PIN'
     end
     object Label3: TLabel
-      Left = 600
-      Top = 55
+      Left = 584
+      Top = 170
       Width = 95
       Height = 16
       Caption = 'Transaction type'
+    end
+    object Label4: TLabel
+      Left = 584
+      Top = 19
+      Width = 81
+      Height = 16
+      Caption = 'Issuer scripts:'
     end
     object cbReaders: TComboBox
       Left = 69
@@ -172,8 +179,8 @@ object fPOS: TfPOS
       TabOrder = 9
     end
     object cbTransactionType: TComboBox
-      Left = 701
-      Top = 52
+      Left = 685
+      Top = 167
       Width = 145
       Height = 24
       Style = csDropDownList
@@ -193,6 +200,30 @@ object fPOS: TfPOS
       Checked = True
       State = cbChecked
       TabOrder = 5
+    end
+    object cbSPINUnblock: TCheckBox
+      Left = 584
+      Top = 64
+      Width = 137
+      Height = 17
+      Caption = 'PIN unblock'
+      TabOrder = 17
+    end
+    object cbSAppUnblock: TCheckBox
+      Left = 584
+      Top = 41
+      Width = 145
+      Height = 17
+      Caption = 'Application unblock'
+      TabOrder = 18
+    end
+    object cbSPINChange: TCheckBox
+      Left = 584
+      Top = 87
+      Width = 137
+      Height = 17
+      Caption = 'PIN change'
+      TabOrder = 19
     end
   end
   object meLog: TMemo

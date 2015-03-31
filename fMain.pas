@@ -31,6 +31,10 @@ type
     cbTransactionType: TComboBox;
     Label3: TLabel;
     cbPSEForce: TCheckBox;
+    Label4: TLabel;
+    cbSPINUnblock: TCheckBox;
+    cbSAppUnblock: TCheckBox;
+    cbSPINChange: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure btRunClick(Sender: TObject);
     procedure btRefreshClick(Sender: TObject);
@@ -279,11 +283,31 @@ begin
 
     // Issuer scripts processing
 
+    AddLog('');
     AddLog('* * * Issuer script processing');
 
+    // unblock application
+    if cbSAppUnblock.Checked then
+    begin
+      AddLog('* Unblock application');
+      emv.RunSimpleIssuerScript(#$18, bank);
+    end;
+
     // unblock PIN
-    AddLog('* Unblock PIN');
-    emv.RunSimpleIssuerScript(#$24, bank);
+    if cbSPINUnblock.Checked then
+    begin
+      AddLog('* Unblock PIN');
+      emv.RunSimpleIssuerScript(#$24, bank);
+    end;
+
+    // change PIN
+    if cbSPINChange.Checked then
+    begin
+      AddLog('* Change PIN');
+      emv.RunChangePINIssuerScript(edPIN.Text, bank);
+    end;
+
+    // update record. CVM - 0x8E
 
     bank.Free;
 

@@ -361,6 +361,7 @@ type
     FSelectedAID: AnsiString;
 
     function GetSelectedAID: AnsiString;
+    function GetIssuerCmdMAC(bank: TVirtualBank; command: AnsiString; data: AnsiString): AnsiString;
   public
     LoggingTLV,
     CheckExpired,
@@ -415,6 +416,7 @@ type
     function GenerateAC(sid: rSID; FirstAC: boolean; bank: TVirtualBank; var resAC: tlvRespTmplAC): boolean;
 
     function RunSimpleIssuerScript(cmd: AnsiChar; bank: TVirtualBank): boolean;
+    function RunChangePINIssuerScript(PIN: string; bank: TVirtualBank): boolean;
 
     constructor Create(pcscC: TPCSCConnector);
     destructor Destroy; override;
@@ -762,6 +764,20 @@ begin
 
   AC1Result.Clear;
   AC2Result.Clear;
+end;
+
+function TEMV.GetIssuerCmdMAC(bank: TVirtualBank; command: AnsiString; data: AnsiString): AnsiString;
+var
+  raw: AnsiString;
+begin
+  raw := command + AC1Result.sATC + AC1Result.AC + data;
+  Result := bank.IssuerScriptCalcMAC(
+    AFLListGetParam(#$5A),     // PAN
+    AFLListGetParam(#$5F#$34), // PAN Sequence Number
+    AC1Result.sATC,            // Application Transaction Counter
+    raw);                      // MAC RAW data
+
+  AddLog('MAC data: ' + Bin2HexExt(raw, true, true));
 end;
 
 function TEMV.GetStaticDataAuthTagList: AnsiString;
@@ -1601,27 +1617,28 @@ begin
   Result := true;
 end;
 
+function TEMV.RunChangePINIssuerScript(PIN: string;
+  bank: TVirtualBank): boolean;
+begin
+  Result := false;
+
+end;
+
 function TEMV.RunSimpleIssuerScript(cmd: AnsiChar; bank: TVirtualBank): boolean;
 var
   command,
-  data,
-  mac: Ansistring;
+  data: Ansistring;
   sw: word;
 begin
   Result := false;
   if not AC1Result.Valid then exit;
 
   command := #$84 + cmd + #$00#$00 + #$04;
-  mac := bank.IssuerScriptCalcMAC(
-         AFLListGetParam(#$5A),     // PAN
-         AFLListGetParam(#$5F#$34), // PAN Sequence Number
-         AC1Result.sATC,             // Application Transaction Counter
-         command + AC1Result.sATC + AC1Result.AC); // MAC raw data
-  data := mac;
-
-  AddLog('MAC data: ' + Bin2HexExt(command + AC1Result.sATC + AC1Result.AC, true, true));
+  data := GetIssuerCmdMAC(bank, command, '');
   AddLog('Issuer command: ' + Bin2HexExt(command + data, true, true));
+
   FpcscC.GetResponseFromCard(command, data, sw);
+
   AddLog('Result: ' + IntToHex(sw, 4));
   Result := (Hi(sw) = $90) or (Hi(sw) = $62) or (Hi(sw) = $63);
 end;
