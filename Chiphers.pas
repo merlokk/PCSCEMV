@@ -30,7 +30,40 @@ type
     class function SHA1Hash(data: AnsiString): AnsiString;
   end;
 
+function DESSetOdd(s: AnsiString): AnsiString; overload;
+function DESSetOdd(c: AnsiChar): AnsiChar; overload;
+function DESSetOdd(b: byte): byte; overload;
+function isOdd(b: byte): boolean;
+
 implementation
+
+function DESSetOdd(s: AnsiString): AnsiString;
+var
+  i: integer;
+begin
+  for i := 1 to length(s) do
+    Result := Result + DESSetOdd(s[i]);
+end;
+
+function DESSetOdd(c: AnsiChar): AnsiChar;
+begin
+  Result := AnsiChar(DESSetOdd(byte(c)));
+end;
+
+function DESSetOdd(b: byte): byte;
+begin
+  Result := b;
+  if not isOdd(b) then Result := b xor $01;
+end;
+
+function isOdd(b: byte): boolean;
+var
+  i: Integer;
+begin
+  Result := false;
+  for i := 0 to 7 do
+    if (b and (1 shl i)) <> 0 then Result := not Result;
+end;
 
 { TChipher }
 

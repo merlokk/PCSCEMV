@@ -416,7 +416,7 @@ type
     function GenerateAC(sid: rSID; FirstAC: boolean; bank: TVirtualBank; var resAC: tlvRespTmplAC): boolean;
 
     function RunSimpleIssuerScript(cmd: AnsiChar; bank: TVirtualBank): boolean;
-    function RunChangePINIssuerScript(PIN: string; bank: TVirtualBank): boolean;
+    function RunChangePINIssuerScript(OldPIN, PIN: string; bank: TVirtualBank): boolean;
 
     constructor Create(pcscC: TPCSCConnector);
     destructor Destroy; override;
@@ -1617,11 +1617,71 @@ begin
   Result := true;
 end;
 
-function TEMV.RunChangePINIssuerScript(PIN: string;
+function TEMV.RunChangePINIssuerScript(OldPIN, PIN: string;
   bank: TVirtualBank): boolean;
+var
+  s: string;
+  UDK,
+  SessionKey,
+  p1,
+  p2,
+  PINBlock,
+  command,
+  data: AnsiString;
+  sw: word;
+  i: Integer;
 begin
   Result := false;
+  if (not AC1Result.Valid) or
+     (length(PIN) > 12) then exit;
 
+  UDK := bank.GetUDK(
+    AFLListGetParam(#$5A),     // PAN
+    AFLListGetParam(#$5F#$34), // PAN Sequence Number
+    ktENC);
+  SessionKey := bank. GetSessionKey(
+    AFLListGetParam(#$5A),     // PAN
+    AFLListGetParam(#$5F#$34), // PAN Sequence Number
+    AC1Result.sATC,            // Application Transaction Counter
+    ktENC);
+
+  p1 := Copy(UDK, 1, 8);
+  for i := 1 to 4 do p1[i] := #$00;
+
+  s := PIN;
+  s := '0' + IntToHex(length(PIN), 1) + s;
+  while length(s) < 16 do s := s + 'F';
+
+  p2 := Hex2Bin(s);
+
+  for i := 1 to 8 do
+    p2[i] := AnsiChar(byte(p2[i]) xor byte(p1[i]));
+
+  if OldPIN <> '' then
+  begin
+    s := OldPIN;
+    while length(s) < 16 do s := s + '0';
+    p1 := Hex2Bin(s);
+
+    for i := 1 to 8 do
+      p2[i] := AnsiChar(byte(p2[i]) xor byte(p1[i]));
+
+    command := #$84#$24#$00#$01;
+  end
+  else
+    command := #$84#$24#$00#$02;
+
+  p2 := AnsiChar(length(p2)) + p2 + #$80#$00#$00#$00#$00#$00#$00;
+  PINBlock := TChipher.TripleDesECBEncode(p2, SessionKey);
+
+  command := command + AnsiChar(length(PINBlock) + 4);
+  data := PINBlock + GetIssuerCmdMAC(bank, command, PINBlock);
+  AddLog('Issuer command: ' + Bin2HexExt(command + data, true, true));
+
+  FpcscC.GetResponseFromCard(command, data, sw);
+
+  AddLog('Result: ' + IntToHex(sw, 4));
+  Result := (Hi(sw) = $90) or (Hi(sw) = $62) or (Hi(sw) = $63);
 end;
 
 function TEMV.RunSimpleIssuerScript(cmd: AnsiChar; bank: TVirtualBank): boolean;

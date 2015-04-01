@@ -281,8 +281,8 @@ begin
     bank := TVirtualBank.Create;
     if not emv.AC(bank, trType) then exit;
 
-    // Issuer scripts processing
 
+    // Issuer scripts processing
     AddLog('');
     AddLog('* * * Issuer script processing');
 
@@ -304,7 +304,7 @@ begin
     if cbSPINChange.Checked then
     begin
       AddLog('* Change PIN');
-      emv.RunChangePINIssuerScript(edPIN.Text, bank);
+      emv.RunChangePINIssuerScript('', edPIN.Text, bank);
     end;
 
     // update record. CVM - 0x8E

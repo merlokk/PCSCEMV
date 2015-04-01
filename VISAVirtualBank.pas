@@ -139,7 +139,10 @@ begin
   if Result = '' then
     Result := TKeyStorage.DeriveKey(TKeyStorage.GetMDKKey(PAN, KeyType), PAN, PANSeq);
 
-  if Result = '' then AddLog('-- Cant found a 3DES key.');
+  if Result = '' then
+    AddLog('-- Cant found a 3DES key.')
+  else
+    Result := DESSetOdd(Result);
 end;
 
 { TKeyStorage }
