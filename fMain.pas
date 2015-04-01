@@ -35,6 +35,11 @@ type
     cbSPINUnblock: TCheckBox;
     cbSAppUnblock: TCheckBox;
     cbSPINChange: TCheckBox;
+    cbSUpdateRecord: TCheckBox;
+    edSFI: TEdit;
+    edRECN: TEdit;
+    edRecord: TEdit;
+    cbSPutData: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure btRunClick(Sender: TObject);
     procedure btRefreshClick(Sender: TObject);
@@ -307,7 +312,17 @@ begin
       emv.RunChangePINIssuerScript('', edPIN.Text, bank);
     end;
 
-    // update record. CVM - 0x8E
+    // update record
+    //CVM - 0x8E >> SFI: 0x03 rec num:3 ***70 12 8E 10 00 00 00 00 00 00 00 00 41 03 1E 03 42 03 1F 02
+    if cbSUpdateRecord.Checked then
+    begin
+      AddLog('* Update record');
+      emv.RunUpdateRecordIssuerScript(
+        StrToIntDef(edSFI.Text, 0),
+        StrToIntDef(edRECN.Text, 0),
+        Hex2Bin(edRecord.Text),
+        bank);
+    end;
 
     bank.Free;
 

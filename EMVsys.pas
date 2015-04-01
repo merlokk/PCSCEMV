@@ -417,6 +417,7 @@ type
 
     function RunSimpleIssuerScript(cmd: AnsiChar; bank: TVirtualBank): boolean;
     function RunChangePINIssuerScript(OldPIN, PIN: string; bank: TVirtualBank): boolean;
+    function RunUpdateRecordIssuerScript(SFI, RecN: byte; Rec: AnsiString; bank: TVirtualBank): boolean;
 
     constructor Create(pcscC: TPCSCConnector);
     destructor Destroy; override;
@@ -1695,6 +1696,27 @@ begin
 
   command := #$84 + cmd + #$00#$00 + #$04;
   data := GetIssuerCmdMAC(bank, command, '');
+  AddLog('Issuer command: ' + Bin2HexExt(command + data, true, true));
+
+  FpcscC.GetResponseFromCard(command, data, sw);
+
+  AddLog('Result: ' + IntToHex(sw, 4));
+  Result := (Hi(sw) = $90) or (Hi(sw) = $62) or (Hi(sw) = $63);
+end;
+
+function TEMV.RunUpdateRecordIssuerScript(SFI, RecN: byte;
+  Rec: AnsiString; bank: TVirtualBank): boolean;
+var
+  command,
+  data: Ansistring;
+  sw: word;
+begin
+  Result := false;
+  if not AC1Result.Valid then exit;
+
+  command := #$04#$DC + AnsiChar(RecN) + AnsiChar((SFI shl 3) or $04) +
+  AnsiChar(length(Rec) + 4);
+  data := Rec + GetIssuerCmdMAC(bank, command, Rec);
   AddLog('Issuer command: ' + Bin2HexExt(command + data, true, true));
 
   FpcscC.GetResponseFromCard(command, data, sw);

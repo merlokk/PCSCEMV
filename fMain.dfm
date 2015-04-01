@@ -2,7 +2,7 @@ object fPOS: TfPOS
   Left = 0
   Top = 0
   Caption = 'Test POS terminal'
-  ClientHeight = 720
+  ClientHeight = 760
   ClientWidth = 1105
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -18,7 +18,7 @@ object fPOS: TfPOS
     Left = 0
     Top = 0
     Width = 1105
-    Height = 195
+    Height = 233
     Align = alTop
     BevelOuter = bvNone
     TabOrder = 0
@@ -38,7 +38,7 @@ object fPOS: TfPOS
     end
     object Label3: TLabel
       Left = 584
-      Top = 170
+      Top = 206
       Width = 95
       Height = 16
       Caption = 'Transaction type'
@@ -70,7 +70,7 @@ object fPOS: TfPOS
     end
     object btRun: TButton
       Left = 16
-      Top = 128
+      Top = 172
       Width = 75
       Height = 25
       Caption = 'Run'
@@ -121,7 +121,7 @@ object fPOS: TfPOS
     end
     object Button2: TButton
       Left = 992
-      Top = 159
+      Top = 202
       Width = 75
       Height = 25
       Caption = 'Test'
@@ -148,7 +148,7 @@ object fPOS: TfPOS
     end
     object btSaveLog: TButton
       Left = 16
-      Top = 159
+      Top = 203
       Width = 75
       Height = 25
       Caption = 'Save log'
@@ -157,7 +157,7 @@ object fPOS: TfPOS
     end
     object edLogName: TEdit
       Left = 97
-      Top = 159
+      Top = 203
       Width = 136
       Height = 24
       TabOrder = 14
@@ -180,7 +180,7 @@ object fPOS: TfPOS
     end
     object cbTransactionType: TComboBox
       Left = 685
-      Top = 167
+      Top = 203
       Width = 145
       Height = 24
       Style = csDropDownList
@@ -225,14 +225,65 @@ object fPOS: TfPOS
       Caption = 'PIN change'
       TabOrder = 19
     end
+    object cbSUpdateRecord: TCheckBox
+      Left = 584
+      Top = 110
+      Width = 145
+      Height = 17
+      Caption = 'Update Record'
+      TabOrder = 20
+    end
+    object edSFI: TEdit
+      Left = 584
+      Top = 133
+      Width = 33
+      Height = 24
+      Hint = 'SFI'
+      ParentShowHint = False
+      ShowHint = True
+      TabOrder = 21
+      Text = '03'
+    end
+    object edRECN: TEdit
+      Left = 623
+      Top = 133
+      Width = 34
+      Height = 24
+      Hint = 'Record number'
+      ParentShowHint = False
+      ShowHint = True
+      TabOrder = 22
+      Text = '03'
+    end
+    object edRecord: TEdit
+      Left = 663
+      Top = 133
+      Width = 434
+      Height = 24
+      Hint = 'Record data'
+      ParentShowHint = False
+      ShowHint = True
+      TabOrder = 23
+      Text = '70 12 8E 10 00 00 00 00 00 00 00 00 41 03 1E 03 42 03 1F 02'
+    end
+    object cbSPutData: TCheckBox
+      Left = 584
+      Top = 163
+      Width = 105
+      Height = 17
+      Caption = 'Put data'
+      TabOrder = 24
+    end
   end
   object meLog: TMemo
     Left = 0
-    Top = 195
+    Top = 233
     Width = 1105
-    Height = 525
+    Height = 527
     Align = alClient
     ScrollBars = ssVertical
     TabOrder = 1
+    ExplicitTop = 195
+    ExplicitHeight = 525
   end
 end
