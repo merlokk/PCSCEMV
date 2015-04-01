@@ -362,6 +362,7 @@ type
 
     function GetSelectedAID: AnsiString;
     function GetIssuerCmdMAC(bank: TVirtualBank; command: AnsiString; data: AnsiString): AnsiString;
+    function ExecuteIssuerScriptCmd(bank: TVirtualBank; command, data: AnsiString): boolean;
   public
     LoggingTLV,
     CheckExpired,
@@ -765,6 +766,23 @@ begin
 
   AC1Result.Clear;
   AC2Result.Clear;
+end;
+
+function TEMV.ExecuteIssuerScriptCmd(bank: TVirtualBank; command, data: AnsiString): boolean;
+var
+  icommand,
+  idata: AnsiString;
+  sw: Word;
+begin
+  icommand := command + AnsiChar(length(data) + 4);
+
+  idata := data + GetIssuerCmdMAC(bank, icommand, data);
+  AddLog('Issuer command: ' + Bin2HexExt(icommand + idata, true, true));
+
+  FpcscC.GetResponseFromCard(icommand, idata, sw);
+
+  AddLog('Result: ' + IntToHex(sw, 4) + ' ' + Bin2Hex(idata));
+  Result := (Hi(sw) = $90) or (Hi(sw) = $62) or (Hi(sw) = $63);
 end;
 
 function TEMV.GetIssuerCmdMAC(bank: TVirtualBank; command: AnsiString; data: AnsiString): AnsiString;
@@ -1675,54 +1693,32 @@ begin
   p2 := AnsiChar(length(p2)) + p2 + #$80#$00#$00#$00#$00#$00#$00;
   PINBlock := TChipher.TripleDesECBEncode(p2, SessionKey);
 
-  command := command + AnsiChar(length(PINBlock) + 4);
-  data := PINBlock + GetIssuerCmdMAC(bank, command, PINBlock);
-  AddLog('Issuer command: ' + Bin2HexExt(command + data, true, true));
-
-  FpcscC.GetResponseFromCard(command, data, sw);
-
-  AddLog('Result: ' + IntToHex(sw, 4));
-  Result := (Hi(sw) = $90) or (Hi(sw) = $62) or (Hi(sw) = $63);
+  Result := ExecuteIssuerScriptCmd(bank, command, PINBlock);
 end;
 
 function TEMV.RunSimpleIssuerScript(cmd: AnsiChar; bank: TVirtualBank): boolean;
 var
-  command,
-  data: Ansistring;
-  sw: word;
+  command: Ansistring;
 begin
   Result := false;
   if not AC1Result.Valid then exit;
 
-  command := #$84 + cmd + #$00#$00 + #$04;
-  data := GetIssuerCmdMAC(bank, command, '');
-  AddLog('Issuer command: ' + Bin2HexExt(command + data, true, true));
-
-  FpcscC.GetResponseFromCard(command, data, sw);
-
-  AddLog('Result: ' + IntToHex(sw, 4));
-  Result := (Hi(sw) = $90) or (Hi(sw) = $62) or (Hi(sw) = $63);
+  command := #$84 + cmd + #$00#$00;
+  Result := ExecuteIssuerScriptCmd(bank, command, '');
 end;
 
 function TEMV.RunUpdateRecordIssuerScript(SFI, RecN: byte;
   Rec: AnsiString; bank: TVirtualBank): boolean;
 var
-  command,
-  data: Ansistring;
+  command: Ansistring;
   sw: word;
 begin
   Result := false;
   if not AC1Result.Valid then exit;
 
-  command := #$04#$DC + AnsiChar(RecN) + AnsiChar((SFI shl 3) or $04) +
-  AnsiChar(length(Rec) + 4);
-  data := Rec + GetIssuerCmdMAC(bank, command, Rec);
-  AddLog('Issuer command: ' + Bin2HexExt(command + data, true, true));
+  command := #$04#$DC + AnsiChar(RecN) + AnsiChar((SFI shl 3) or $04);
 
-  FpcscC.GetResponseFromCard(command, data, sw);
-
-  AddLog('Result: ' + IntToHex(sw, 4));
-  Result := (Hi(sw) = $90) or (Hi(sw) = $62) or (Hi(sw) = $63);
+  Result := ExecuteIssuerScriptCmd(bank, command, Rec);
 end;
 
 function TEMV.SDA: boolean;
