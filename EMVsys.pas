@@ -842,7 +842,7 @@ begin
 
   // make plain block for enciphering. EMV 4.3 book2, 7.2, page 85
   block := #$7F + pinblock + ICCDynamicNumber;
-  block := block + AnsiString(StringOfChar(#0, PublicKey.Size - length(block)));
+  block := block + AnsiString(StringOfChar(#1, PublicKey.Size - length(block)));
 
   if length(block) <> PublicKey.Size then
   begin
