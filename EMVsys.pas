@@ -419,6 +419,7 @@ type
     function RunSimpleIssuerScript(cmd: AnsiChar; bank: TVirtualBank): boolean;
     function RunChangePINIssuerScript(OldPIN, PIN: string; bank: TVirtualBank): boolean;
     function RunUpdateRecordIssuerScript(SFI, RecN: byte; Rec: AnsiString; bank: TVirtualBank): boolean;
+    function RunPutDataIssuerScript(Tag, Value: AnsiString; bank: TVirtualBank): boolean;
 
     constructor Create(pcscC: TPCSCConnector);
     destructor Destroy; override;
@@ -1645,9 +1646,7 @@ var
   p1,
   p2,
   PINBlock,
-  command,
-  data: AnsiString;
-  sw: word;
+  command: AnsiString;
   i: Integer;
 begin
   Result := false;
@@ -1696,6 +1695,31 @@ begin
   Result := ExecuteIssuerScriptCmd(bank, command, PINBlock);
 end;
 
+function TEMV.RunPutDataIssuerScript(Tag, Value: AnsiString;
+  bank: TVirtualBank): boolean;
+var
+  command,
+  data: Ansistring;
+  tlv: TLVrec;
+  sw: word;
+begin
+  Result := false;
+  if not AC1Result.Valid then exit;
+  if length(Tag) <> 2 then exit;
+
+  data := FpcscC.GetData(Tag, sw);
+  if sw = $9000 then
+    AddLog('tag:' + Bin2Hex(Tag) + ' = ' + Bin2HexExt(data))
+  else
+    AddLog('tag:' + Bin2Hex(Tag) + ' error:' + IntToHex(sw, 4));
+
+  command := #$04#$DA + Tag;
+
+  tlv.TLVSet(Tag, Value);
+
+  Result := ExecuteIssuerScriptCmd(bank, command, Value);
+end;
+
 function TEMV.RunSimpleIssuerScript(cmd: AnsiChar; bank: TVirtualBank): boolean;
 var
   command: Ansistring;
@@ -1711,12 +1735,11 @@ function TEMV.RunUpdateRecordIssuerScript(SFI, RecN: byte;
   Rec: AnsiString; bank: TVirtualBank): boolean;
 var
   command: Ansistring;
-  sw: word;
 begin
   Result := false;
   if not AC1Result.Valid then exit;
 
-  command := #$04#$DC + AnsiChar(RecN) + AnsiChar((SFI shl 3) or $04);
+  command := AnsiString(#$04#$DC) + AnsiChar(RecN) + AnsiChar((SFI shl 3) or $04);
 
   Result := ExecuteIssuerScriptCmd(bank, command, Rec);
 end;
