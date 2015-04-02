@@ -5,7 +5,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.StdCtrls, UITypes,
-  defs, PCSCConnector, CardUtils, EMVsys, EMVConst, VISAVirtualBank, Chiphers;
+  defs, PCSCConnector, CardUtils, EMVsys, EMVConst, VISAVirtualBank, Chiphers, TLVSys;
 
 type
   TfPOS = class(TForm)
@@ -14,7 +14,7 @@ type
     cbReaders: TComboBox;
     btRefresh: TButton;
     meLog: TMemo;
-    btRun: TButton;
+    btRunContact: TButton;
     cbATR: TCheckBox;
     cbTLV: TCheckBox;
     cbCheckExpired: TCheckBox;
@@ -40,8 +40,11 @@ type
     edRECN: TEdit;
     edRecord: TEdit;
     cbSPutData: TCheckBox;
+    edTag: TEdit;
+    edValue: TEdit;
+    btRunContactless: TButton;
     procedure FormCreate(Sender: TObject);
-    procedure btRunClick(Sender: TObject);
+    procedure btRunContactClick(Sender: TObject);
     procedure btRefreshClick(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure btSaveLogClick(Sender: TObject);
@@ -95,7 +98,7 @@ begin
   end;
 end;
 
-procedure TfPOS.btRunClick(Sender: TObject);
+procedure TfPOS.btRunContactClick(Sender: TObject);
 var
   pcscC: TPCSCConnector;
   Result: boolean;
@@ -313,7 +316,6 @@ begin
     end;
 
     // update record
-    //CVM - 0x8E >> SFI: 0x03 rec num:3 ***70 12 8E 10 00 00 00 00 00 00 00 00 41 03 1E 03 42 03 1F 02
     if cbSUpdateRecord.Checked then
     begin
       AddLog('* Update record');
@@ -321,6 +323,16 @@ begin
         StrToIntDef(edSFI.Text, 0),
         StrToIntDef(edRECN.Text, 0),
         Hex2Bin(edRecord.Text),
+        bank);
+    end;
+
+    // put data
+    if cbSPutData.Checked then
+    begin
+      AddLog('* Put data');
+      emv.RunPutDataIssuerScript(
+        Hex2Bin(edTag.Text),
+        Hex2Bin(edValue.Text),
         bank);
     end;
 
@@ -351,12 +363,14 @@ begin
 end;
 
 procedure TfPOS.Button2Click(Sender: TObject);
+var
+  t: TLVrec;
+  d: AnsiString;
 begin
-  meLog.Lines.Add('hash:' + Bin2HexExt(
-  TChipher.DesMACEmv(
-    Hex2Bin(''),
-    Hex2Bin('')), false, true));
-  meLog.Lines.Add('expected: ')
+  t.TLVSet(#$AA, Stringofchar(#$11, StrToIntDef(edPIN.Text, 0)));
+  d := t.Serialize;
+  t.Deserealize(d);
+  meLog.Lines.Add('len: ' + Bin2HexExt(d) + ' des len:' + IntToStr(t.Len));
 end;
 
 procedure TfPOS.ClearLog;

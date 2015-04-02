@@ -12,6 +12,7 @@ type
     Value: AnsiString;
 
     procedure Clear;
+    procedure TLVSet(ATag, AValue: AnsiString);
     function Serialize: AnsiString;
     function Deserealize(s: AnsiString): boolean;
     function PartDeserealize(s: AnsiString): integer;
@@ -20,6 +21,37 @@ type
   end;
 
 implementation
+
+function IntByteLength(n: int64): byte;
+var
+  i: integer;
+begin
+  Result := 0;
+  for i := SizeOf(n) - 1 downto 0 do
+    if (n shr (i * 8)) and $FF <> 0 then
+    begin
+      Result := i + 1;
+      break;
+    end;
+end;
+
+function GetTLVStrLen(len: int64): AnsiString;
+var
+  blen: byte;
+  i: Integer;
+begin
+  if len < $80 then
+  begin
+    Result := AnsiChar(byte(len));
+  end
+  else
+  begin
+    blen := IntByteLength(len);
+    Result := AnsiChar($80 or blen);
+    for i := blen - 1 downto 0 do
+      Result := Result + AnsiChar((len shr (i * 8)) and $FF);
+  end;
+end;
 
 { TLVrec }
 
@@ -81,7 +113,7 @@ begin
 
     Len := 0;
     for i := 1 to Length(strlen) do
-      Len := Len + (byte(strlen[i]) shl ((i - 1) * 8));
+      Len := Len + (byte(strlen[i]) shl ((Length(strlen) - i) * 8));
   end
   else  // one-byte length
     Len := byte(strlen[1]);
@@ -92,10 +124,29 @@ begin
   Result := indx + Len;
 end;
 
+// Sample BER-TLV
+// 4F 05 48656C6C6F                 // *application specific*, primitive encoding of tag number 15, length 5 then the value
+// 4F 8105 48656C6C6F               // the same, using two bytes to encode the length
+// 4F 820005 48656C6C6F             // the same, using three bytes to encode the length
+// 4F 83000005 48656C6C6F           // the same, using four bytes to encode the length
+// 4F 8400000005 48656C6C6F         // the same , using five bytes to encode the length
+
 function TLVrec.Serialize: AnsiString;
 begin
   Result := '';
 
+  Len := length(Value);
+
+  Result := Tag + GetTLVStrLen(len) + Value;
+end;
+
+procedure TLVrec.TLVSet(ATag, AValue: AnsiString);
+begin
+  Clear;
+
+  Tag := ATag;
+  Value := AValue;
+  Len := length(AValue);
 end;
 
 end.
