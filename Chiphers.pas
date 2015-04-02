@@ -15,6 +15,7 @@ type
     Modulus: AnsiString;
 
     function Size: integer;
+    function Valid: boolean;
     procedure Clear;
   end;
 
@@ -270,6 +271,11 @@ end;
 function TRSAPublicKey.Size: integer;
 begin
   Result := length(Modulus);
+end;
+
+function TRSAPublicKey.Valid: boolean;
+begin
+  Result := (length(Exponent) <> 0) and (length(Modulus) <> 0);
 end;
 
 end.

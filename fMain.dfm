@@ -294,7 +294,7 @@ object fPOS: TfPOS
       ParentShowHint = False
       ShowHint = True
       TabOrder = 27
-      Text = 'FF'
+      Text = 'FF 00'
     end
     object btRunContactless: TButton
       Left = 16

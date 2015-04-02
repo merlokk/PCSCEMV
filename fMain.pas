@@ -249,6 +249,9 @@ begin
     emv.VerifyPIN := cbVerifyPIN.Checked;
     if not emv.CVM and not cbIgnoreCVM.Checked then exit;
 
+    // TEST!!!
+    emv.EnchipheredPINVerify(emv.PlaintextPIN);
+
     // Terminal Risk Management
     emv.RiskManagement;
 
@@ -367,7 +370,7 @@ var
   t: TLVrec;
   d: AnsiString;
 begin
-  t.TLVSet(#$AA, Stringofchar(#$11, StrToIntDef(edPIN.Text, 0)));
+  t.TLVSet(#$AA, AnsiString(Stringofchar(#$11, StrToIntDef(edPIN.Text, 0))));
   d := t.Serialize;
   t.Deserealize(d);
   meLog.Lines.Add('len: ' + Bin2HexExt(d) + ' des len:' + IntToStr(t.Len));

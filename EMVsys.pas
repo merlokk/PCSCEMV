@@ -293,6 +293,7 @@ type
     CDAinput: AnsiString;
 
     procedure Clear;
+    function GetKey: TRSAPublicKey;
     function Deserialize(s: AnsiString): boolean;
   end;
 
@@ -384,6 +385,8 @@ type
 
     TVR: rTVR;
 
+    ICCPublicKey: TRSAPublicKey;
+
     AC1Result,
     AC2Result: tlvRespTmplAC;
 
@@ -409,8 +412,12 @@ type
     function DDA: boolean;
 
     function CVM: boolean;
+
     function GetPINTryCount: byte;
+    function CheckPINTryCount: boolean;
+    function GetPINKey: TRSAPublicKey;
     function PlaintextPINVerify(pin: AnsiString): boolean;
+    function EnchipheredPINVerify(pin: AnsiString): boolean;
 
     function FillCDOLRecords(UseGoodTVR: boolean): boolean;
     function AC(bank: TVirtualBank; TransType: TTransactionType): boolean;
@@ -742,6 +749,23 @@ begin
   Result := Result and CDOL2.SetTagValue(Tag, Value);
 end;
 
+function TEMV.CheckPINTryCount: boolean;
+var
+ trycount: integer;
+begin
+  Result := false;
+
+  trycount := GetPINTryCount;
+  AddLog('Pin try count=' + IntToStr(trycount));
+  if trycount < 2 then  // here must be 1 but we avoid card PIN blocking
+  begin
+    TVR.PINTryLimitExceeded := true;
+    exit;
+  end;
+
+  Result := true;
+end;
+
 procedure TEMV.Clear;
 begin
   LoggingTLV := false;
@@ -764,9 +788,90 @@ begin
   CDOL2.Valid := false;
 
   TVR.Clear;
+  ICCPublicKey.Clear;
 
   AC1Result.Clear;
   AC2Result.Clear;
+end;
+
+function TEMV.EnchipheredPINVerify(pin: AnsiString): boolean;
+var
+  pinblock,
+  res,
+  block: AnsiString;
+  refdata,
+  len: byte;
+  sw: word;
+  PublicKey: TRSAPublicKey;
+  ICCDynamicNumber: AnsiString;
+begin
+  Result := false;
+  len := length(pin);
+  if (len < $04) or (len > $0C) then exit;   // EMV 4.3 book 3, 6.5.12
+
+  // check PIN try count
+  if not CheckPINTryCount then exit;
+
+  // Get unpredictable number from card
+  ICCDynamicNumber := FpcscC.GetChallenge(sw);
+  if sw <> $9000 then
+  begin
+    AddLog('Command GET CHALLENGE error: ' + IntToHex(sw, 4));
+    exit;
+  end;
+
+  if length(ICCDynamicNumber) <> 8 then exit;
+
+  // EMV 4.3 book 3, 6.5.12, page 67 and EMV Book 2, section 7
+  refdata := $88; // 10001000 - Enciphered PIN, format as defined in Book 2
+  pinblock := '2' + AnsiString(IntToHex(len, 1));
+  pinblock := pinblock + pin;
+  while length(pinblock) < 16 do
+    pinblock := pinblock + 'F';
+
+  pinblock := Hex2Bin(string(pinblock));
+
+  // get key
+  PublicKey := GetPINKey;
+
+  if not PublicKey.Valid then
+  begin
+    AddLog('Dont have a key for encipher PIN');
+    exit;
+  end;
+
+  // make plain block for enciphering. EMV 4.3 book2, 7.2, page 85
+  block := #$7F + pinblock + ICCDynamicNumber;
+  block := block + AnsiString(StringOfChar(#0, PublicKey.Size - length(block)));
+
+  if length(block) <> PublicKey.Size then
+  begin
+    AddLog('Length of PIN block and the key not the same.');
+    exit;
+  end;
+
+  // encipher block
+  block := TChipher.RSADecode(block, PublicKey);
+
+  // send block to the card
+  res:= FpcscC.VerifyPIN(block, refdata, sw);
+  if Hi(sw) = $63 then
+  begin
+    AddLog('Pin Verification error! Try count=' + IntToStr(sw and $0F));
+    TVR.CardholderVerificationWasNotSuccessful := true;
+    exit;
+  end;
+
+  if sw <> $9000 then
+  begin
+    AddLog('Pin Verification error!');
+    TVR.CardholderVerificationWasNotSuccessful := true;
+    exit;
+  end
+  else
+    AddLog('Pin OK.');
+
+  Result := true;
 end;
 
 function TEMV.ExecuteIssuerScriptCmd(bank: TVirtualBank; command, data: AnsiString): boolean;
@@ -858,9 +963,25 @@ begin
         end;
       cvrPlainPINverifybyICCandSignature:
         begin
-          AddLog('* * * Verify Clear Text Pin and capture paper signature');
+          AddLog('* * * Verify Clear Text Pin and capture a paper signature');
           if VerifyPIN then
             StepResult := PlaintextPINVerify(PlaintextPIN)
+          else
+            StepResult := false;
+        end;
+      cvrEncipheredPINverifybyICC:
+        begin
+          AddLog('* * * Verify enchiphered Pin');
+          if VerifyPIN then
+            StepResult := EnchipheredPINVerify(PlaintextPIN)
+          else
+            StepResult := false;
+        end;
+      cvrEncpiheredPINverifybyICCandSignature:
+        begin
+          AddLog('* * * Verify enchiphered Pin and capture a paper signature');
+          if VerifyPIN then
+            StepResult := EnchipheredPINVerify(PlaintextPIN)
           else
             StepResult := false;
         end;
@@ -896,21 +1017,28 @@ end;
 
 function TEMV.DDA: boolean;
 var
-  PublicKey,
-  IssuerPublicKey,
-  ICCPublicKey: TRSAPublicKey;
+  EMVPublicKey,
+  IssuerPublicKey: TRSAPublicKey;
   res,
   PubKeyIndx,
   Certificate,
   DecrCertificate,
   ddol : AnsiString;
+  sw: word;
+  tlv: TTLV;
+
   CertIs: certIssuerPublicKey;
   CertICC: certICCPublicKey;
   SDAD: certSignedDynamicAppData;
-  sw: word;
-  tlv: TTLV;
 begin
   Result := false;
+
+  ICCPublicKey.Clear;
+
+  CertIs.Clear;
+  CertICC.Clear;
+  SDAD.Clear;
+
   AddLog('');
   AddLog('* DDA');
   if FSelectedAID = '' then exit;
@@ -920,8 +1048,8 @@ begin
   PubKeyIndx := AFLListGetParam(#$8F);
   if length(PubKeyIndx) <> 1 then exit;
 
-  PublicKey := GetPublicKey(Copy(FSelectedAID, 1, 5), byte(PubKeyIndx[1]));
-  if PublicKey.Size < 128 then // RSA1024
+  EMVPublicKey := GetPublicKey(Copy(FSelectedAID, 1, 5), byte(PubKeyIndx[1]));
+  if EMVPublicKey.Size < 128 then // RSA1024
   begin
     AddLog('Dont have a public key: ' + Bin2HexExt(Copy(FSelectedAID, 1, 5), true, true) + ': ' +
        IntToHex(byte(PubKeyIndx[1]), 2));
@@ -935,12 +1063,12 @@ begin
     AddLog('0x90 Issuer Public Key Certificate not found!');
     exit;
   end;
-  DecrCertificate := TChipher.RSADecode(Certificate, PublicKey);
+  DecrCertificate := TChipher.RSADecode(Certificate, EMVPublicKey);
   AddLog('Issuer Public Key Certificate:');
   AddLog(Bin2HexExt(DecrCertificate, true, true));
 
   // check certificate
-  CertIs.CKeySize := PublicKey.Size;
+  CertIs.CKeySize := EMVPublicKey.Size;
   CertIs.CRemainder := AFLListGetParam(#$92);
   CertIs.CExponent := AFLListGetParam(#$9F#$32);
   CertIs.CPAN := AFLListGetParam(#$5A);
@@ -1370,6 +1498,32 @@ begin
   end;
 end;
 
+function TEMV.GetPINKey: TRSAPublicKey;
+var
+  PINKeyCert: AnsiString;
+begin
+  Result.Clear;
+
+  // EMV 4.3, book2, 7.1, page 82
+
+  // 9F2D ICC PIN Encipherment Public Key Certificate
+  PINKeyCert := AFLListGetParam(#$9F#$2D);
+  // 9F2E ICC PIN Encipherment Public Key Exponent
+  // 9F2F ICC PIN Encipherment Public Key Remainder, if present
+
+  if PINKeyCert = '' then
+  begin
+    if ICCPublicKey.Valid then Result := ICCPublicKey;
+
+    exit;
+  end;
+
+
+  // TODO get key from sertificate
+
+
+end;
+
 function TEMV.GetPINTryCount: byte;
 var
   res: AnsiString;
@@ -1480,7 +1634,6 @@ var
   pinblock: AnsiString;
   refdata,
   len: byte;
-  trycount: integer;
   sw: word;
   res: AnsiString;
 begin
@@ -1488,13 +1641,8 @@ begin
   len := length(pin);
   if (len < $04) or (len > $0C) then exit;   // EMV 4.3 book 3, 6.5.12
 
-  trycount := GetPINTryCount;
-  AddLog('Pin try count=' + IntToStr(trycount));
-  if trycount < 2 then  // here must be 1 but we avoid card PIN blocking
-  begin
-    TVR.PINTryLimitExceeded := true;
-    exit;
-  end;
+  // check PIN try count
+  if not CheckPINTryCount then exit;
 
   // EMV 4.3 book 3, 6.5.12, page 67
   refdata := $80; // 10000000 - Plaintext PIN
@@ -2581,6 +2729,14 @@ begin
   if length(ICCPublicKey) <> ICCPublicKeyLength then exit;
 
   Result := true;
+end;
+
+function certICCPublicKey.GetKey: TRSAPublicKey;
+begin
+  Result.Clear;
+
+  Result.Exponent := CExponent;
+  Result.Modulus := ICCPublicKey + CRemainder;
 end;
 
 { certSignedDynamicAppData }
