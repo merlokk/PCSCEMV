@@ -245,12 +245,13 @@ begin
      else
        AddLog('* DDA is not supported according to AIP');
 
-    emv.PlaintextPIN := AnsiString(edPIN.Text);
+    emv.PlaintextPIN := edPIN.Text;
     emv.VerifyPIN := cbVerifyPIN.Checked;
     if not emv.CVM and not cbIgnoreCVM.Checked then exit;
 
     // TEST!!!
-    emv.EnchipheredPINVerify(emv.PlaintextPIN);
+//    emv.RunPINVerify(emv.PlaintextPIN, false);
+//    emv.RunPINVerify(emv.PlaintextPIN, true);
 
     // Terminal Risk Management
     emv.RiskManagement;

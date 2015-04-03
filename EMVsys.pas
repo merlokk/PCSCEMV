@@ -377,8 +377,8 @@ type
     DAInput: AnsiString;
     DataAuthCode9F45: AnsiString;
 
-    RandomNumber,
-    PlaintextPIN: AnsiString;
+    RandomNumber: AnsiString;
+    PlaintextPIN: String;
 
     CDOL1,
     CDOL2: tlvPDOL;
@@ -413,11 +413,12 @@ type
 
     function CVM: boolean;
 
+    function MakePINBlock(BlockType: char; PIN: string): AnsiString;
     function GetPINTryCount: byte;
     function CheckPINTryCount: boolean;
+
     function GetPINKey: TRSAPublicKey;
-    function PlaintextPINVerify(pin: AnsiString): boolean;
-    function EnchipheredPINVerify(pin: AnsiString): boolean;
+    function RunPINVerify(pin: String; EncPIN: boolean): boolean;
 
     function FillCDOLRecords(UseGoodTVR: boolean): boolean;
     function AC(bank: TVirtualBank; TransType: TTransactionType): boolean;
@@ -794,86 +795,6 @@ begin
   AC2Result.Clear;
 end;
 
-function TEMV.EnchipheredPINVerify(pin: AnsiString): boolean;
-var
-  pinblock,
-  res,
-  block: AnsiString;
-  refdata,
-  len: byte;
-  sw: word;
-  PublicKey: TRSAPublicKey;
-  ICCDynamicNumber: AnsiString;
-begin
-  Result := false;
-  len := length(pin);
-  if (len < $04) or (len > $0C) then exit;   // EMV 4.3 book 3, 6.5.12
-
-  // check PIN try count
-  if not CheckPINTryCount then exit;
-
-  // Get unpredictable number from card
-  ICCDynamicNumber := FpcscC.GetChallenge(sw);
-  if sw <> $9000 then
-  begin
-    AddLog('Command GET CHALLENGE error: ' + IntToHex(sw, 4));
-    exit;
-  end;
-
-  if length(ICCDynamicNumber) <> 8 then exit;
-
-  // EMV 4.3 book 3, 6.5.12, page 67 and EMV Book 2, section 7
-  refdata := $88; // 10001000 - Enciphered PIN, format as defined in Book 2
-  pinblock := '2' + AnsiString(IntToHex(len, 1));
-  pinblock := pinblock + pin;
-  while length(pinblock) < 16 do
-    pinblock := pinblock + 'F';
-
-  pinblock := Hex2Bin(string(pinblock));
-
-  // get key
-  PublicKey := GetPINKey;
-
-  if not PublicKey.Valid then
-  begin
-    AddLog('Dont have a key for encipher PIN');
-    exit;
-  end;
-
-  // make plain block for enciphering. EMV 4.3 book2, 7.2, page 85
-  block := #$7F + pinblock + ICCDynamicNumber;
-  block := block + AnsiString(StringOfChar(#1, PublicKey.Size - length(block)));
-
-  if length(block) <> PublicKey.Size then
-  begin
-    AddLog('Length of PIN block and the key not the same.');
-    exit;
-  end;
-
-  // encipher block
-  block := TChipher.RSADecode(block, PublicKey);
-
-  // send block to the card
-  res:= FpcscC.VerifyPIN(block, refdata, sw);
-  if Hi(sw) = $63 then
-  begin
-    AddLog('Pin Verification error! Try count=' + IntToStr(sw and $0F));
-    TVR.CardholderVerificationWasNotSuccessful := true;
-    exit;
-  end;
-
-  if sw <> $9000 then
-  begin
-    AddLog('Pin Verification error!');
-    TVR.CardholderVerificationWasNotSuccessful := true;
-    exit;
-  end
-  else
-    AddLog('Pin OK.');
-
-  Result := true;
-end;
-
 function TEMV.ExecuteIssuerScriptCmd(bank: TVirtualBank; command, data: AnsiString): boolean;
 var
   icommand,
@@ -957,7 +878,7 @@ begin
         begin
           AddLog('* * * Verify Clear Text Pin');
           if VerifyPIN then
-            StepResult := PlaintextPINVerify(PlaintextPIN)
+            StepResult := RunPINVerify(PlaintextPIN, false)
           else
             StepResult := false;
         end;
@@ -965,7 +886,7 @@ begin
         begin
           AddLog('* * * Verify Clear Text Pin and capture a paper signature');
           if VerifyPIN then
-            StepResult := PlaintextPINVerify(PlaintextPIN)
+            StepResult := RunPINVerify(PlaintextPIN, false)
           else
             StepResult := false;
         end;
@@ -973,7 +894,7 @@ begin
         begin
           AddLog('* * * Verify enchiphered Pin');
           if VerifyPIN then
-            StepResult := EnchipheredPINVerify(PlaintextPIN)
+            StepResult := RunPINVerify(PlaintextPIN, true)
           else
             StepResult := false;
         end;
@@ -981,7 +902,7 @@ begin
         begin
           AddLog('* * * Verify enchiphered Pin and capture a paper signature');
           if VerifyPIN then
-            StepResult := EnchipheredPINVerify(PlaintextPIN)
+            StepResult := RunPINVerify(PlaintextPIN, true)
           else
             StepResult := false;
         end;
@@ -1629,30 +1550,88 @@ begin
   Result := true;
 end;
 
-function TEMV.PlaintextPINVerify(pin: AnsiString): boolean;
+function TEMV.MakePINBlock(BlockType: char; PIN: string): AnsiString;
 var
-  pinblock: AnsiString;
-  refdata,
   len: byte;
-  sw: word;
-  res: AnsiString;
+  pinblock: string;
 begin
-  Result := false;
   len := length(pin);
   if (len < $04) or (len > $0C) then exit;   // EMV 4.3 book 3, 6.5.12
+
+  pinblock := BlockType + IntToHex(len, 1);
+  pinblock := pinblock + pin;
+  while length(pinblock) < 16 do
+    pinblock := pinblock + 'F';
+
+  Result := Hex2Bin(pinblock);
+end;
+
+function TEMV.RunPINVerify(pin: String; EncPIN: boolean): boolean;
+var
+  block,
+  pinblock: AnsiString;
+  refdata,
+  sw: word;
+  res: AnsiString;
+  PublicKey: TRSAPublicKey;
+  ICCDynamicNumber: AnsiString;
+begin
+  Result := false;
 
   // check PIN try count
   if not CheckPINTryCount then exit;
 
   // EMV 4.3 book 3, 6.5.12, page 67
-  refdata := $80; // 10000000 - Plaintext PIN
-  pinblock := '2' + AnsiString(IntToHex(len, 1));
-  pinblock := pinblock + pin;
-  while length(pinblock) < 16 do
-    pinblock := pinblock + 'F';
+  pinblock := MakePINBlock('2', pin);
+  if pinblock = '' then
+  begin
+    AddLog('Cant make PIN block!');
+    exit;
+  end;
 
-  pinblock := Hex2Bin(string(pinblock));
+  // enciphered PIN
+  if EncPIN then
+  begin
+    refdata := $88; // 10001000 - Enciphered PIN, format as defined in Book 2
 
+    // Get unpredictable number from card
+    ICCDynamicNumber := FpcscC.GetChallenge(sw);
+    if sw <> $9000 then
+    begin
+      AddLog('Command GET CHALLENGE error: ' + IntToHex(sw, 4));
+      exit;
+    end;
+
+    if length(ICCDynamicNumber) <> 8 then exit;
+
+    // get key
+    PublicKey := GetPINKey;
+
+    if not PublicKey.Valid then
+    begin
+      AddLog('Dont have a key for encipher PIN');
+      exit;
+    end;
+
+    // make plain block for enciphering. EMV 4.3 book2, 7.2, page 85
+    block := #$7F + pinblock + ICCDynamicNumber;
+    block := block + AnsiString(StringOfChar(#1, PublicKey.Size - length(block)));
+
+    if length(block) <> PublicKey.Size then
+    begin
+      AddLog('Length of PIN block and the key not the same.');
+      exit;
+    end;
+
+    // encipher block
+    pinblock := TChipher.RSADecode(block, PublicKey);
+  end
+  else
+  begin
+    refdata := $80; // 10000000 - Plaintext PIN
+  end;
+
+  // send PIN block to the card
   res:= FpcscC.VerifyPIN(pinblock, refdata, sw);
   if Hi(sw) = $63 then
   begin
