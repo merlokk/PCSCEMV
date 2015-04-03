@@ -18,14 +18,14 @@ uses
   LbRSA in 'lockbox2\LbRSA.pas',
   LbString in 'lockbox2\LbString.pas',
   LbUtils in 'lockbox2\LbUtils.pas',
-  LbRandom in 'lockbox2\LbRandom.pas',
   LbBigInt in 'lockbox2\LbBigInt.pas',
   LbConst in 'lockbox2\LbConst.pas',
   LbAsym in 'lockbox2\LbAsym.pas',
   LbClass in 'lockbox2\LbClass.pas',
   LbProc in 'lockbox2\LbProc.pas',
   EMVRec in 'EMVRec.pas',
-  VISAVirtualBank in 'VISAVirtualBank.pas';
+  VISAVirtualBank in 'VISAVirtualBank.pas',
+  LbRandom in 'lockbox2\LbRandom.pas';
 
 {$R *.res}
 

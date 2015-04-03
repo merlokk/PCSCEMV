@@ -51,7 +51,7 @@ begin
   UDKENC := GetUDK(PAN, PANSequence, ktENC);
   if UDKENC = '' then exit;
 
-  Result := TChipher.TripleDesECBEncode(RawData, UDKENC);
+  Result := TCipher.TripleDesECBEncode(RawData, UDKENC);
 end;
 
 function TVirtualBank.CalculateARQC(PAN, PANSequence,
@@ -64,7 +64,7 @@ begin
   UDKMAC := GetUDK(PAN, PANSequence, ktMAC);
   if UDKMAC = '' then exit;
 
-  Result := TChipher.DesMACEmv(RawData, UDKMAC);
+  Result := TCipher.DesMACEmv(RawData, UDKMAC);
 end;
 
 constructor TVirtualBank.Create;
@@ -129,7 +129,7 @@ begin
 
   if SessionKey = '' then exit;
 
-  Result := TChipher.DesMACEmv(data, SessionKey);
+  Result := TCipher.DesMACEmv(data, SessionKey);
   Result := Copy(Result, 1, 4); // first 4 bytes!
 end;
 
@@ -167,7 +167,7 @@ begin
   for i := 1 to length(UDKB) do
     UDKB[i] := AnsiChar(byte(UDKB[i]) xor $FF);
 
-  Result := TChipher.TripleDesECBEncode(UDKA + UDKB, MDK);
+  Result := TCipher.TripleDesECBEncode(UDKA + UDKB, MDK);
 end;
 
 class function TKeyStorage.GetMDKKey(PAN: AnsiString;

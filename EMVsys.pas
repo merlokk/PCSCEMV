@@ -811,7 +811,7 @@ begin
   DataAuthCode9F45 := '';
 
 //  RandomNumber := #$01#$23#$45#$67;
-  RandomNumber := TChipher.GetRandom(4);
+  RandomNumber := TCipher.GetRandom(4);
   PlaintextPIN := '';
 
   CDOL1.Valid := false;
@@ -1013,7 +1013,7 @@ begin
     AddLog('0x90 Issuer Public Key Certificate not found!');
     exit;
   end;
-  DecrCertificate := TChipher.RSADecode(Certificate, EMVPublicKey);
+  DecrCertificate := TCipher.RSADecode(Certificate, EMVPublicKey);
   AddLog('Issuer Public Key Certificate:');
   AddLog(Bin2HexExt(DecrCertificate, true, true));
 
@@ -1036,7 +1036,7 @@ begin
 
   // ICC Public Key Certificate
   Certificate := AFLListGetParam(#$9F#$46);
-  DecrCertificate := TChipher.RSADecode(Certificate, IssuerPublicKey);
+  DecrCertificate := TCipher.RSADecode(Certificate, IssuerPublicKey);
 
   AddLog('ICC Public Key Certificate:');
   AddLog(Bin2HexExt(DecrCertificate, true, true));
@@ -1096,7 +1096,7 @@ begin
     tlv.Free;
   end;
 
-  DecrCertificate := TChipher.RSADecode(Certificate, ICCPublicKey);
+  DecrCertificate := TCipher.RSADecode(Certificate, ICCPublicKey);
   AddLog('Signed Dynamic Application Data:');
   AddLog(Bin2HexExt(DecrCertificate, true, true));
 
@@ -1481,7 +1481,7 @@ begin
     exit;
   end;
 
-  PINKeyCert := TChipher.RSADecode(PINKeyCert, EMVPublicKey);
+  PINKeyCert := TCipher.RSADecode(PINKeyCert, EMVPublicKey);
   AddLog('ICC PIN Encipherment Public Key Certificate:');
   AddLog(Bin2HexExt(PINKeyCert, true, true));
 
@@ -1666,7 +1666,7 @@ begin
 
     // make plain block for enciphering. EMV 4.3 book2, 7.2, page 85
     block := #$7F + pinblock + ICCDynamicNumber;
-    block := block + TChipher.GetRandom(PublicKey.Size - length(block));
+    block := block + TCipher.GetRandom(PublicKey.Size - length(block));
 
     if length(block) <> PublicKey.Size then
     begin
@@ -1675,7 +1675,7 @@ begin
     end;
 
     // encipher block
-    pinblock := TChipher.RSADecode(block, PublicKey);
+    pinblock := TCipher.RSADecode(block, PublicKey);
   end
   else
   begin
@@ -1868,7 +1868,7 @@ begin
     command := #$84#$24#$00#$02;
 
   p2 := AnsiChar(length(p2)) + p2 + #$80#$00#$00#$00#$00#$00#$00;
-  PINBlock := TChipher.TripleDesECBEncode(p2, SessionKey);
+  PINBlock := TCipher.TripleDesECBEncode(p2, SessionKey);
 
   Result := ExecuteIssuerScriptCmd(bank, command, PINBlock);
 end;
@@ -1961,7 +1961,7 @@ begin
     AddLog('0x90 Issuer Public Key Certificate not found!');
     exit;
   end;
-  DecrCertificate := TChipher.RSADecode(Certificate, EMVPublicKey);
+  DecrCertificate := TCipher.RSADecode(Certificate, EMVPublicKey);
 
   // check certificate
   CertIs.CKeySize := EMVPublicKey.Size;
@@ -1987,7 +1987,7 @@ begin
     AddLog('0x93 Signed Static Application Data not found!');
     exit;
   end;
-  DecrCertificate := TChipher.RSADecode(Certificate, IssuerPublicKey);
+  DecrCertificate := TCipher.RSADecode(Certificate, IssuerPublicKey);
 
   // check certificate
 
@@ -2528,7 +2528,7 @@ begin
   pk := Copy(Raw, 2, 14 + len) + CRemainder + CExponent;
 
 	// Step 6: Generate hash from concatenation
-  pk := TChipher.SHA1Hash(pk);
+  pk := TCipher.SHA1Hash(pk);
 
 	// Step 7: Compare the hash result with the recovered hash result. They have to be equal
   if pk <> Hash then exit;
@@ -2627,7 +2627,7 @@ begin
   pk := Copy(Raw, 2, 4 + len) + CDAinput + CSDATagList;
 
 	// Step 6: Generate hash from concatenation
-  pk := TChipher.SHA1Hash(pk);
+  pk := TCipher.SHA1Hash(pk);
 
 	// Step 7: Compare recovered hash with generated hash. Store the Data Authentication Code from SSAD in tag '9F45'
   if pk <> Hash then exit;
@@ -2718,7 +2718,7 @@ begin
   pk := Copy(Raw, 2, 20 + len) + CRemainder + CExponent + CDAinput + CSDATagList;
 
 	// Step 6: Generate hash from concatenation
-  pk := TChipher.SHA1Hash(pk);
+  pk := TCipher.SHA1Hash(pk);
 
 	// Step 7: Compare recovered hash with generated hash
   if pk <> Hash then
@@ -2825,7 +2825,7 @@ begin
   pk := Copy(Raw, 2, 3 + len) + CRandomNum;
 
 	// Step 6: Genereate hash from concatenation
-  pk := TChipher.SHA1Hash(pk);
+  pk := TCipher.SHA1Hash(pk);
 
 	// Step 7: Compare recovered hash with generated hash
   if pk <> Hash then exit;

@@ -20,7 +20,7 @@ type
     procedure Clear;
   end;
 
-  TChipher = class
+  TCipher = class
   public
     class function RSADecode(data: AnsiString; PublicKey: TRSAPublicKey): AnsiString;
     class function RSAEncode(data, PrivateKey: AnsiString): AnsiString;
@@ -72,7 +72,7 @@ end;
 { TChipher }
 
 // http://en.wikipedia.org/wiki/ISO/IEC_9797-1#MAC_algorithm_3
-class function TChipher.TripleDesECBEncode(data, Key: AnsiString): AnsiString;
+class function TCipher.TripleDesECBEncode(data, Key: AnsiString): AnsiString;
 var
   i,
   indx       : Longint;
@@ -126,7 +126,7 @@ begin
   Result := Result + res;
 end;
 
-class function TChipher.DesMACEmv(data, Key: AnsiString): AnsiString;
+class function TCipher.DesMACEmv(data, Key: AnsiString): AnsiString;
 var
   i,
   indx       : Longint;
@@ -180,7 +180,7 @@ begin
   Move(Block[0], Result[1], SizeOf(Block));
 end;
 
-class function TChipher.RSADecode(data: AnsiString; PublicKey: TRSAPublicKey): AnsiString;
+class function TCipher.RSADecode(data: AnsiString; PublicKey: TRSAPublicKey): AnsiString;
 var
   dwSize, dwLen : DWORD;
   Exponent, Modulus, BData,
@@ -233,7 +233,7 @@ begin
   end;
 end;
 
-class function TChipher.RSAEncode(data, PrivateKey: AnsiString): AnsiString;
+class function TCipher.RSAEncode(data, PrivateKey: AnsiString): AnsiString;
 var
   RSA: TLbRSA;
 begin             //  TODO!!!!!  NOT WORKS!!!!
@@ -248,7 +248,7 @@ begin             //  TODO!!!!!  NOT WORKS!!!!
   end;
 end;
 
-class function TChipher.SHA1Hash(data: AnsiString): AnsiString;
+class function TCipher.SHA1Hash(data: AnsiString): AnsiString;
 var
   SHA1: TLbSHA1;
   Digest: TSHA1Digest;
@@ -263,7 +263,7 @@ begin
   Move(Digest, Result[1], 20);
 end;
 
-class function TChipher.GetRandom(cnt: integer): AnsiString;
+class function TCipher.GetRandom(cnt: integer): AnsiString;
 var
  rnd: AnsiString;
 begin
