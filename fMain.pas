@@ -45,6 +45,7 @@ type
     btRunContactless: TButton;
     procedure FormCreate(Sender: TObject);
     procedure btRunContactClick(Sender: TObject);
+    procedure btRunContactlessClick(Sender: TObject);
     procedure btRefreshClick(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure btSaveLogClick(Sender: TObject);
@@ -355,6 +356,119 @@ begin
   except
     AddLog('-- EMV processing exception!!!');
   end;
+end;
+
+procedure TfPOS.btRunContactlessClick(Sender: TObject);
+var
+  pcscC: TPCSCConnector;
+  i: Integer;
+  emv: TEMV;
+  Result: boolean;
+begin
+  try
+    if cbReaders.ItemIndex < 0 then exit;
+    ClearLog;
+
+    pcscC := TPCSCConnector.Create(Application);
+    pcscC.APDULogging := cbAPDULogging.Checked;
+
+    AddLog('* PCSC init');
+    pcscC.Init;
+    pcscC.UseReaderNum := cbReaders.ItemIndex;
+
+    AddLog('* PCSC inited. readers count=' + IntToStr(pcscC.NumReaders));
+
+    edLogName.Text := FormatDateTime('DDMMYYYY', Now);
+
+    emv := nil;
+    try
+      Result := pcscC.Open;
+      if not Result then
+      begin
+        AddLog('PCSC open error');
+        exit;
+      end;
+
+      AddLog('* PCSC opened');
+
+      Result := pcscC.Connect;
+      if not Result then exit;
+
+      AddLog('* PCSC connected. InterfaceState=' + IntToStr(pcscC.AttrInterfaceStatus) +' protocol=' + IntToStr(pcscC.AttrProtocol));
+      if cbATR.Checked then
+      begin
+        AddLog('ICC=' + pcscC.AttrICCType);
+      end;
+      AddLog('ATR=' + Bin2HexExt(pcscC.AttrCardATR, true, true) + ' hist=' + pcscC.AttrATRHistBytes);
+      if cbATR.Checked then
+      begin
+        AddLog('Default data rate=' + IntToStr(pcscC.AttrProtocol));
+        AddLog('Default clock=' + IntToStr(pcscC.AttrProtocol));
+        AddLog('ATR:' + #$0D#$0A + pcscC.AttrATR.GetStr);
+      end;
+
+      if pcscC.AttrCardATR = '' then
+      begin
+        AddLog('Card not present. exiting...');
+        exit;
+      end;
+
+      emv := TEMV.Create(pcscC);
+      emv.LoggingTLV := cbTLV.Checked;
+      emv.CheckExpired := cbCheckExpired.Checked;
+
+      AddLog('');
+      AddLog('* * * Trying  PSE');
+      emv.GetAIDsByPSE('1PAY.SYS.DDF01');
+      emv.GetAIDsByPSE('2PAY.SYS.DDF01');
+
+      if cbPSEForce.Checked then
+      begin
+        emv.AIDList.Clear;
+        AddLog('PSE cleared.');
+      end;
+
+      if emv.AIDList.Count < 1 then
+      begin
+        AddLog('');
+        AddLog('* * * The card have no PSE, switching to List of AIDs');
+
+        emv.GetAIDsByConstAIDList;
+      end;
+
+     AddLog('* * * List Definition Files:');
+     for i := 0 to emv.AIDList.Count - 1 do
+       AddLog('- ' + emv.AIDList[i].ToString);
+
+     AddLog('');
+     // select definition file
+     emv.SelectAppByList;
+
+     if emv.SelectedAID = '' then
+     begin
+       AddLog('* Cant select app. EXIT!');
+       exit;
+     end;
+
+     //!!!!!!!!!!!!!!!!
+
+
+
+
+    finally
+      emv.Free;
+
+      AddLog('* PCSC done');
+      if pcscC.Connected then pcscC.Disconnect;
+      if pcscC.Opened then pcscC.Close;
+
+      pcscC.Destroy;
+    end;
+
+  except
+    AddLog('-- EMV processing exception!!!');
+  end;
+
 end;
 
 procedure TfPOS.btSaveLogClick(Sender: TObject);

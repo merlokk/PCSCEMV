@@ -303,6 +303,7 @@ object fPOS: TfPOS
       Height = 25
       Caption = 'Run contactless'
       TabOrder = 13
+      OnClick = btRunContactlessClick
     end
   end
   object meLog: TMemo
@@ -313,7 +314,5 @@ object fPOS: TfPOS
     Align = alClient
     ScrollBars = ssVertical
     TabOrder = 1
-    ExplicitTop = 195
-    ExplicitHeight = 525
   end
 end
