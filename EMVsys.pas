@@ -810,7 +810,8 @@ begin
   DAInput := '';
   DataAuthCode9F45 := '';
 
-  RandomNumber := #$01#$23#$45#$67;
+//  RandomNumber := #$01#$23#$45#$67;
+  RandomNumber := TChipher.GetRandom(4);
   PlaintextPIN := '';
 
   CDOL1.Valid := false;
@@ -1665,7 +1666,7 @@ begin
 
     // make plain block for enciphering. EMV 4.3 book2, 7.2, page 85
     block := #$7F + pinblock + ICCDynamicNumber;
-    block := block + AnsiString(StringOfChar(#1, PublicKey.Size - length(block)));
+    block := block + TChipher.GetRandom(PublicKey.Size - length(block));
 
     if length(block) <> PublicKey.Size then
     begin

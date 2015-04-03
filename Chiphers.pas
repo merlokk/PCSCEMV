@@ -7,7 +7,8 @@ uses
   LbClass,
   LbRSA,
   LbBigInt,
-  LbUtils;
+  LbUtils,
+  LbRandom;
 
 type
   TRSAPublicKey = packed record
@@ -27,6 +28,8 @@ type
     // DES_MAC_EMV | Retail MAC algorithm | ISO 9797-1 Algorithm 3
     class function DesMACEmv(data, Key: AnsiString): AnsiString;
     class function TripleDesECBEncode(data, Key: AnsiString): AnsiString;
+
+    class function GetRandom(cnt: integer): AnsiString;
 
     class function SHA1Hash(data: AnsiString): AnsiString;
   end;
@@ -258,6 +261,19 @@ begin
   SHA1.Destroy;
   SetLength(Result, 20);
   Move(Digest, Result[1], 20);
+end;
+
+class function TChipher.GetRandom(cnt: integer): AnsiString;
+var
+ rnd: AnsiString;
+begin
+  Result := '';
+  if cnt > 16385 then exit;
+
+  rnd := AnsiString(StringOfChar(#0, cnt));
+  lbSysRandomBuff(rnd[1], cnt);
+
+  Result := rnd;
 end;
 
 { TRSAPublicKey }

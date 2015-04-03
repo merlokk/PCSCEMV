@@ -28,6 +28,16 @@ const
 
 implementation
 
+function AnsiXOR(x1, x2: AnsiString): AnsiString;
+var
+ i: integer;
+begin
+  Result := '';
+  if length(x1) <> length(x2) then exit;
+  for i := 1 to length(x1) do
+    Result := Result + AnsiChar(byte(x1[i]) xor byte(x2[i]));
+end;
+
 procedure AddLog(s: string);
 begin
   if Assigned(SLogger) then SLogger(s);
