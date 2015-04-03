@@ -315,6 +315,32 @@ type
     function Deserialize(s: AnsiString): boolean;
   end;
 
+  // ICC PIN Encipherment Public Key Certificate
+  certICCPINEncipherment = packed record
+    Raw: AnsiString;
+
+    ApplicationPAN,
+    CertificateExpirationDate,
+    CertificateSerialNumber: AnsiString;
+    HashAlgorithmId,
+    EncPubKeyAlgId,
+    EncPubKeyLen,
+    EncPubKeyExpLen: byte;
+    EncPubKey,
+    EncPubKeyRemainder,
+    EncPubKeyExponent: AnsiString;
+
+    // parameters!
+    CKeySize: Integer;
+    CPAN,
+    CExponent,
+    CRemainder: AnsiString;
+
+    procedure Clear;
+    function Deserialize(s: AnsiString): boolean;
+    function GetKey: TRSAPublicKey;
+  end;
+
   TIteratorRef = reference to procedure(elm: TTLV);
 
   TTLV = class
@@ -385,6 +411,8 @@ type
 
     TVR: rTVR;
 
+    EMVPublicKey,
+    IssuerPublicKey,
     ICCPublicKey: TRSAPublicKey;
 
     AC1Result,
@@ -938,8 +966,6 @@ end;
 
 function TEMV.DDA: boolean;
 var
-  EMVPublicKey,
-  IssuerPublicKey: TRSAPublicKey;
   res,
   PubKeyIndx,
   Certificate,
@@ -954,6 +980,8 @@ var
 begin
   Result := false;
 
+  EMVPublicKey.Clear;
+  IssuerPublicKey.Clear;
   ICCPublicKey.Clear;
 
   CertIs.Clear;
@@ -1422,15 +1450,19 @@ end;
 function TEMV.GetPINKey: TRSAPublicKey;
 var
   PINKeyCert: AnsiString;
+  CertICCPIN: certICCPINEncipherment;
 begin
   Result.Clear;
+  CertICCPIN.Clear;
 
   // EMV 4.3, book2, 7.1, page 82
 
   // 9F2D ICC PIN Encipherment Public Key Certificate
   PINKeyCert := AFLListGetParam(#$9F#$2D);
   // 9F2E ICC PIN Encipherment Public Key Exponent
+  CertICCPIN.CExponent := AFLListGetParam(#$9F#$2E);
   // 9F2F ICC PIN Encipherment Public Key Remainder, if present
+  CertICCPIN.CRemainder := AFLListGetParam(#$9F#$2F);
 
   if PINKeyCert = '' then
   begin
@@ -1439,10 +1471,28 @@ begin
     exit;
   end;
 
+  // TODO NOT TESTED!!!!!!!
 
-  // TODO get key from sertificate
+  // IT needs to make DDA or SDA before
+  if not IssuerPublicKey.Valid then
+  begin
+    AddLog('Get key for pin enciphering error. Cant get issuer public key.');
+    exit;
+  end;
 
+  PINKeyCert := TChipher.RSADecode(PINKeyCert, EMVPublicKey);
+  AddLog('ICC PIN Encipherment Public Key Certificate:');
+  AddLog(Bin2HexExt(PINKeyCert, true, true));
 
+  CertICCPIN.CKeySize := IssuerPublicKey.Size;
+  CertICCPIN.CPAN := AFLListGetParam(#$5A);
+  if not CertICCPIN.Deserialize(PINKeyCert) then
+  begin
+    AddLog('Get key for pin enciphering error. Wrong certificate format.');
+    exit;
+  end;
+
+  Result := CertICCPIN.GetKey;
 end;
 
 function TEMV.GetPINTryCount: byte;
@@ -1873,8 +1923,6 @@ end;
 
 function TEMV.SDA: boolean;
 var
-  IssuerPublicKey,
-  PublicKey: TRSAPublicKey;
   PubKeyIndx,
   Certificate,
   DecrCertificate : AnsiString;
@@ -1882,6 +1930,11 @@ var
   CertApp: certSignedStaticAppData;
 begin
   Result := false;
+
+  EMVPublicKey.Clear;
+  IssuerPublicKey.Clear;
+  ICCPublicKey.Clear;
+
   AddLog('');
   AddLog('* SDA');
   if FSelectedAID = '' then exit;
@@ -1892,8 +1945,8 @@ begin
   PubKeyIndx := AFLListGetParam(#$8F);
   if length(PubKeyIndx) <> 1 then exit;
 
-  PublicKey := GetPublicKey(Copy(FSelectedAID, 1, 5), byte(PubKeyIndx[1]));
-  if PublicKey.Size < 128 then // RSA1024
+  EMVPublicKey := GetPublicKey(Copy(FSelectedAID, 1, 5), byte(PubKeyIndx[1]));
+  if EMVPublicKey.Size < 128 then // RSA1024
   begin
     AddLog('Dont have a public key: ' + Bin2HexExt(Copy(FSelectedAID, 1, 5), true, true) + ': ' +
        IntToHex(byte(PubKeyIndx[1]), 2));
@@ -1907,10 +1960,10 @@ begin
     AddLog('0x90 Issuer Public Key Certificate not found!');
     exit;
   end;
-  DecrCertificate := TChipher.RSADecode(Certificate, PublicKey);
+  DecrCertificate := TChipher.RSADecode(Certificate, EMVPublicKey);
 
   // check certificate
-  CertIs.CKeySize := PublicKey.Size;
+  CertIs.CKeySize := EMVPublicKey.Size;
   CertIs.CRemainder := AFLListGetParam(#$92);
   CertIs.CExponent := AFLListGetParam(#$9F#$32);
   CertIs.CPAN := AFLListGetParam(#$5A);
@@ -2654,7 +2707,7 @@ begin
 	// Step 3: The Recovered Data Header is equal to '6A'
 	if Raw[1] <> #$6A then exit;
 
-	// Step 4: The Certificate Format is equal to '02'
+	// Step 4: The Certificate Format is equal to '04'
 	if Raw[2] <> #$04 then exit;
 
   // hash is SHA-1
@@ -2764,7 +2817,7 @@ begin
 	// Step 3: The Recovered Data Header is equal to '6A'
 	if Raw[1] <> #$6A then exit;
 
-	// Step 4: The Certificate Format is equal to '02'
+	// Step 4: The Certificate Format is equal to '05'
 	if Raw[2] <> #$05 then exit;
 
 	// Step 5: Concatenation of Signed Data Format, Hash Algorithm Indicator, ICC Dynamic Data Length, ICC Dynamic Data, Pad Pattern, random number
@@ -3096,6 +3149,146 @@ begin
 
   Result := true;
   Valid := true;
+end;
+
+{ certICCPINEncipherment }
+
+procedure certICCPINEncipherment.Clear;
+begin
+  ApplicationPAN := '';
+  CertificateExpirationDate := '';
+  CertificateSerialNumber := '';
+  HashAlgorithmId := 0;
+  EncPubKeyAlgId := 0;
+  EncPubKeyLen := 0;
+  EncPubKeyExpLen := 0;
+  EncPubKey := '';
+  EncPubKeyRemainder := '';
+  EncPubKeyExponent := '';
+end;
+
+function certICCPINEncipherment.Deserialize(s: AnsiString): boolean;
+var
+  pk: AnsiString;
+  len: byte;
+  i: integer;
+  dt: TDateTime;
+begin
+  Result := false;    // @@@@ NOT TESTED!!!!!!!
+  Clear;
+  if (length(s) < 36) or
+     (s[1] <> #$6A) or
+     (s[2] <> #$04) or
+     (s[length(s)] <> #$BC)
+  then exit;
+
+  // EMV 4.3 book 2, 7.1, page 83.
+  len := length(s) - 42;
+  ApplicationPAN := AnsiString(Bin2HexExt(Copy(s, 3, 10), false, true));
+  CertificateExpirationDate := Copy(s, 13, 2);
+  CertificateSerialNumber := Copy(s, 15, 3);
+  HashAlgorithmId := byte(s[18]);
+  EncPubKeyAlgId := byte(s[19]);
+  EncPubKeyLen := byte(s[20]);
+  EncPubKeyExpLen := byte(s[21]);
+  EncPubKey := Copy(s, 22, len);
+//  Hash := Copy(s, 22 + len, 20);
+// add here
+//  EncPubKeyRemainder := Copy(s, 22, len);
+//  EncPubKeyExponent := Copy(s, 22, len);
+
+  for i := length(ApplicationPAN) downto 1 do
+    if ApplicationPAN[i] = 'F' then
+      SetLength(ApplicationPAN, length(ApplicationPAN) - 1)
+    else
+      break;
+
+  if EncPubKeyLen < len then
+  begin
+    // check non correct padding!
+    pk := Copy(EncPubKey, EncPubKeyLen + 1, length(EncPubKey));
+    for i := 1 to length(pk) do
+      if pk[i] <> #$BB then exit;
+
+    //copy key
+    EncPubKey := Copy(EncPubKey, 1, EncPubKeyLen);
+  end;
+
+  Raw := s;
+  // Check decrypted certificate. EMV 4.3 book 2, 7.1, page 82.
+
+	// Step 1: Issuer Public Key Certificate and Certification Authority Public Key Modulus have the same length
+	if length(Raw) <> CKeySize then exit;
+
+	// Step 2: The Recovered Data Trailer is equal to 'BC'
+	if Raw[length(Raw)] <> #$BC then exit;
+
+	// Step 3: The Recovered Data Header is equal to '6A'
+	if Raw[1] <> #$6A then exit;
+
+	// Step 4: The Certificate Format is equal to '04'
+	if Raw[2] <> #$04 then exit;
+
+  // hash is SHA-1
+  if HashAlgorithmId <> 1 then exit;
+
+{  // Step 5: Concatenation
+  pk := Copy(Raw, 2, 20 + len) + CRemainder + CExponent + CDAinput + CSDATagList;
+
+	// Step 6: Generate hash from concatenation
+  pk := TChipher.SHA1Hash(pk);
+
+	// Step 7: Compare recovered hash with generated hash
+  if pk <> Hash then
+  begin
+    AddLog('Hash error. calc=' + Bin2HexExt(pk, false, true) +
+             ' from sert=' + Bin2HexExt(Hash, false, true));
+    exit;
+  end;      }
+
+	// Step 8: Verify that the Issuer Identifier matches the lefmost 3-8 PAN digits
+  pk := AnsiString(Bin2HexExt(CPAN, false, true));
+  pk := Copy(pk, 1, length(ApplicationPAN));
+  if pk <> ApplicationPAN then exit;
+
+	// Step 9: Verify that the last day of the month specified
+	//         in the Certification Expiration Date is equal to or later than today's date.
+  dt := EMVDateDecode(CertificateExpirationDate);
+  dt := IncMonth(dt); // the first day of the next month
+  if dt < now - 365 * 10 then
+  begin
+    AddLog('Certificate end date error');
+    exit;
+  end;
+
+ { if dt < now then
+  begin
+    AddLog('Certificate expired');
+    exit;
+  end;        }
+
+	// Step 10: Check the ICC Public Key Algorithm Indicator
+  if EncPubKeyAlgId <> 1 then exit;
+
+	// Step 11: Concatenate the Leftmost Digits of the ICC Public Key
+	//          and the ICC Public Key Remainder (if present) to obtain the ICC Public Key Modulus
+  if EncPubKeyLen > len then
+    EncPubKey := EncPubKey + EncPubKeyRemainder + CRemainder;
+
+  // check key
+  if length(EncPubKey) <> EncPubKeyLen then exit;
+
+  Result := true;
+end;
+
+function certICCPINEncipherment.GetKey: TRSAPublicKey;
+begin
+  Result.Clear;
+
+  if length(EncPubKeyExponent) <> EncPubKeyExpLen then exit;
+
+  Result.Exponent := EncPubKeyExponent;
+  Result.Modulus := EncPubKey;
 end;
 
 end.
