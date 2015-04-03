@@ -13,7 +13,6 @@ uses
   TLVsys in 'TLVsys.pas',
   EMVconst in 'EMVconst.pas',
   EMVkeys in 'EMVkeys.pas',
-  Chiphers in 'Chiphers.pas',
   LbCipher in 'lockbox2\LbCipher.pas',
   LbRSA in 'lockbox2\LbRSA.pas',
   LbString in 'lockbox2\LbString.pas',
@@ -25,7 +24,9 @@ uses
   LbProc in 'lockbox2\LbProc.pas',
   EMVRec in 'EMVRec.pas',
   VISAVirtualBank in 'VISAVirtualBank.pas',
-  LbRandom in 'lockbox2\LbRandom.pas';
+  LbRandom in 'lockbox2\LbRandom.pas',
+  Ciphers in 'Ciphers.pas',
+  EMVCertificates in 'EMVCertificates.pas';
 
 {$R *.res}
 

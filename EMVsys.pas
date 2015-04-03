@@ -4,7 +4,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, System.AnsiStrings,
   Generics.Collections,
-  TLVsys, EMVconst, defs, PCSCConnector, Ciphers, EMVrec, VISAVirtualBank;
+  TLVsys, EMVCertificates, EMVconst, defs, PCSCConnector, Ciphers, EMVrec, VISAVirtualBank;
 
 const
   ConstAIDList: array of string = [

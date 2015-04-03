@@ -100,7 +100,6 @@
         <DCCReference Include="TLVsys.pas"/>
         <DCCReference Include="EMVconst.pas"/>
         <DCCReference Include="EMVkeys.pas"/>
-        <DCCReference Include="Chiphers.pas"/>
         <DCCReference Include="lockbox2\LbCipher.pas"/>
         <DCCReference Include="lockbox2\LbRSA.pas"/>
         <DCCReference Include="lockbox2\LbString.pas"/>
@@ -113,6 +112,8 @@
         <DCCReference Include="EMVRec.pas"/>
         <DCCReference Include="VISAVirtualBank.pas"/>
         <DCCReference Include="lockbox2\LbRandom.pas"/>
+        <DCCReference Include="Ciphers.pas"/>
+        <DCCReference Include="EMVCertificates.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

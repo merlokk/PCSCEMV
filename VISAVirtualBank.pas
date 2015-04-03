@@ -3,7 +3,7 @@ unit VISAVirtualBank;
 interface
 uses
   System.SysUtils, System.Variants, System.Classes, System.AnsiStrings, Generics.Collections, Forms,
-  IniFiles, defs, Chiphers;
+  IniFiles, defs, Ciphers;
 
 type
   TKeyType = (ktAC, ktMAC, ktENC);
