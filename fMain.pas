@@ -5,7 +5,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.StdCtrls, UITypes,
-  defs, PCSCConnector, CardUtils, EMVsys, EMVConst, VISAVirtualBank, Chiphers, TLVSys;
+  defs, PCSCConnector, CardUtils, EMVsys, EMVConst, VISAVirtualBank, Ciphers, TLVSys;
 
 type
   TfPOS = class(TForm)

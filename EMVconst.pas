@@ -3,7 +3,7 @@ unit EMVconst;
 interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, System.AnsiStrings,
-  Generics.Collections, EMVkeys, Chiphers, defs;
+  Generics.Collections, EMVkeys, Ciphers, defs;
 
 type
   TEMVTag = packed record
