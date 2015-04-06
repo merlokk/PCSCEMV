@@ -82,6 +82,8 @@ type
     function Deserialize(elm: TTLV): boolean;
     function SerializeValues: AnsiString;
     function DecodeStr(prefix: string = ''): string;
+
+    function Count: integer;
   end;
 
   // 9F4A Static Data Authentication Tag List
@@ -275,6 +277,10 @@ type
   TTRansactionParameters = packed record
     TransactionType: TTransactionType;
     CVMFilter: CVMRule2Set;
+    TransParams: tlvPDOL;
+
+    procedure Clear;
+    procedure FillDOL(DOL: tlvPDOL);
   end;
 
   TEMV = class
@@ -323,6 +329,7 @@ type
     procedure SelectAppByList;
 
     function SetGPO_PDOL(tag, val: AnsiString): boolean;
+    function GetPDOL: tlvPDOL;
     function GPO: boolean;
 
     function ProcessingRestrictions: boolean;
@@ -1374,6 +1381,11 @@ begin
   end;
 end;
 
+function TEMV.GetPDOL: tlvPDOL;
+begin
+  Result := FCIPTSelectedApp.PDOL;
+end;
+
 function TEMV.GetPINKey: TRSAPublicKey;
 var
   PINKeyCert: AnsiString;
@@ -2106,6 +2118,11 @@ begin
   SetLength(Items, 0);
 end;
 
+function tlvPDOL.Count: integer;
+begin
+  Result := length(Items);
+end;
+
 function tlvPDOL.DecodeStr(prefix: string): string;
 var
   i: Integer;
@@ -2190,6 +2207,8 @@ var
   i: Integer;
 begin
   Result := false;
+  if not Valid then exit;
+
   for i := 0 to length(Items) - 1 do
     if Items[i].Tag = Tag then
     begin
@@ -2708,6 +2727,26 @@ begin
 
   Result := true;
   Valid := true;
+end;
+
+{ TTRansactionParameters }
+
+procedure TTRansactionParameters.Clear;
+begin
+  TransactionType := ttOnline;
+  CVMFilter := [cvcIfTerminalSupportsCVM];
+  TransParams.Clear;
+  TransParams.Valid := true;
+end;
+
+procedure TTRansactionParameters.FillDOL(DOL: tlvPDOL);
+var
+  i: Integer;
+begin
+  if not DOL.Valid then exit;
+
+  for i := 0 to TransParams.Count - 1 do
+    DOL.SetTagValue(TransParams.Items[i].Tag, TransParams.Items[i].Value);
 end;
 
 end.

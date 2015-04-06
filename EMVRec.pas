@@ -261,8 +261,6 @@ begin
   if IssuerAuthenticationFailed then b[5] := b[5] or $40;
   if ScriptProcessingFailedBeforeFinalGENERATEAC then b[5] := b[5] or $20;
 
-
-
   Result := '';
   for i := 1 to 5 do Result := Result + AnsiChar(b[i]);
 end;

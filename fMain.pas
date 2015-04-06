@@ -110,6 +110,8 @@ var
 begin
   try
     // transaction parameters
+    trParams.TransParams.Clear;
+
     case cbTransactionType.ItemIndex of
       0: trParams.TransactionType := ttOffline;
       1: trParams.TransactionType := ttOnline;
@@ -122,6 +124,23 @@ begin
       cvcIfTerminalSupportsCVM,
       cvcIfNotUnattendedCashNotManualCashNotCashback
     ];
+
+    trParams.TransParams.Valid := true;
+    // 9F66 квалификаторы транзакции для терминала. В простейшем случае может иметь вид: 86 40 00 00
+    trParams.TransParams.AddTag(#$9F#$66, #$A6#$00#$00#$00);
+    //9F02:(Amount, Authorised (Numeric)) len:6
+    trParams.TransParams.AddTag(#$9F#$02, #$00#$00#$00#$00#$01#$00);
+    //9F03:(Amount, Other (Numeric)) len:6
+    trParams.TransParams.AddTag(#$9F#$03, #$00#$00#$00#$00#$00#$00);
+    //9F1A:(Terminal Country Code) len:2
+    trParams.TransParams.AddTag(#$9F#$1A, 'ru');
+    //5F2A:(Transaction Currency Code) len:2
+    trParams.TransParams.AddTag(#$5F#$2A, #$09#$99);  // n/a
+    //9A:(Transaction Date) len:3
+    trParams.TransParams.AddTag(#$9A, #$00#$00#$00);
+    //9C:(Transaction Type) len:1   |  00 => Goods and service #01 => Cash
+    trParams.TransParams.AddTag(#$9C, #$00);
+
 
     // processing
     if cbReaders.ItemIndex < 0 then exit;
@@ -211,18 +230,9 @@ begin
      AddLog('* * * Get Processing Options');
 
      // fill PDOL fields
-
-     // 9F1A	Terminal Country Code
-     emv.SetGPO_PDOL(#$9F#$1A, 'ru');
-     // 9F66 квалификаторы транзакции для терминала. В простейшем случае может иметь вид: 86 40 00 00
-     emv.SetGPO_PDOL(#$9F#$66, #$A6#$00#$00#$00);
-     // 9F02 Amount, Authorised (Numeric)
-     emv.SetGPO_PDOL(#$9F#$02, #$01#$00); //amount
+     trParams.FillDOL(emv.GetPDOL);
      // 9F37 Unpredictable Number
      emv.SetGPO_PDOL(#$9F#$37, emv.RandomNumber);
-     // 5F2A Transaction Currency Code
-     emv.SetGPO_PDOL(#$5F#$2A, #$09#$99);  //rub
-
 
      AddLog('PDOL: ');
      AddLog(emv.FCIPTSelectedApp.PDOL.DecodeStr('^'));
@@ -277,18 +287,10 @@ begin
     // prepare AC data
     if not emv.FillCDOLRecords(cbGoodTVR.Checked) then exit;
 
-    //9F02:(Amount, Authorised (Numeric)) len:6
-    emv.CDOLSetTagValue(#$9F#$02, #$00#$00#$00#$00#$01#$00);
-    //9F03:(Amount, Other (Numeric)) len:6
-    emv.CDOLSetTagValue(#$9F#$03, #$00#$00#$00#$00#$00#$00);
-    //9F1A:(Terminal Country Code) len:2
-    emv.CDOLSetTagValue(#$9F#$1A, 'ru');
-    //5F2A:(Transaction Currency Code) len:2
-    emv.CDOLSetTagValue(#$5F#$2A, #$09#$99);  // n/a
-    //9A:(Transaction Date) len:3
-    emv.CDOLSetTagValue(#$9A, #$00#$00#$00);
-    //9C:(Transaction Type) len:1   |  00 => Goods and service #01 => Cash
-    emv.CDOLSetTagValue(#$9C, #$00);
+    // fill CDOL from params
+    trParams.FillDOL(emv.CDOL1);
+    trParams.FillDOL(emv.CDOL2);
+
     //9F37:(Unpredictable Number) len:4
     emv.CDOLSetTagValue(#$9F#$37, emv.RandomNumber);
     // 9f45 Data Authentication Code
