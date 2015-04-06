@@ -27,6 +27,7 @@ type
     cvcIfTerminalSupportsCVM, cvcIfManualCash, cvcIfPurchaseWithCashback, cvcIfTransactionInAppCurrencyAndUnderX,
     cvcIfTransactionInAppCurrencyAndOverX, cvcIfTransactionInAppCurrencyAndUnderY, cvcIfTransactionInAppCurrencyAndOverY,
     cvcRFU, cvcRFUIndividualPayments);
+  CVMRule2Set = set of CVMRule2;
 
   ACTransactionDecision = (tdAAC, tdTC, tdARQC, tdAAR, tdRFU, tdARQCinAC2);
   ACReasonCode = (reNoInformationGiven, reServiceNotAllowed, rePINTryLimitExceeded,

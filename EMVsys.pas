@@ -271,6 +271,12 @@ type
     procedure Iterate;
   end;
 
+  // transaction parameters
+  TTRansactionParameters = packed record
+    TransactionType: TTransactionType;
+    CVMFilter: CVMRule2Set;
+  end;
+
   TEMV = class
   private
     FpcscC: TPCSCConnector;
@@ -329,7 +335,7 @@ type
     function SDA: boolean;
     function DDA: boolean;
 
-    function CVM: boolean;
+    function CVM(CVMFilter: CVMRule2Set): boolean;
 
     function MakePINBlock(BlockType: char; PIN: string): AnsiString;
     function GetPINTryCount: byte;
@@ -771,7 +777,7 @@ begin
   Clear;
 end;
 
-function TEMV.CVM: boolean;
+function TEMV.CVM(CVMFilter: CVMRule2Set): boolean;
 var
   CVMlist: rCVMList;
   i: Integer;
@@ -791,6 +797,10 @@ begin
   StepResult := false;
   for i := 0 to length(CVMlist.Items) - 1 do
   begin
+    // filter
+    if not (CVMlist.Items[i].Condition in CVMFilter) then continue;
+
+    // processing
     StepResult := false;
     case CVMlist.Items[i].Rule of
       cvrPlaintextPINverificationbyICC:
@@ -799,7 +809,10 @@ begin
           if VerifyPIN then
             StepResult := RunPINVerify(PlaintextPIN, false)
           else
+          begin
+            AddLog('Verify PIN not allowed.');
             StepResult := false;
+          end;
         end;
       cvrPlainPINverifybyICCandSignature:
         begin
@@ -807,7 +820,10 @@ begin
           if VerifyPIN then
             StepResult := RunPINVerify(PlaintextPIN, false)
           else
+          begin
+            AddLog('Verify PIN not allowed.');
             StepResult := false;
+          end;
         end;
       cvrEncipheredPINverifybyICC:
         begin
@@ -815,7 +831,10 @@ begin
           if VerifyPIN then
             StepResult := RunPINVerify(PlaintextPIN, true)
           else
+          begin
+            AddLog('Verify PIN not allowed.');
             StepResult := false;
+          end;
         end;
       cvrEncpiheredPINverifybyICCandSignature:
         begin
@@ -823,7 +842,10 @@ begin
           if VerifyPIN then
             StepResult := RunPINVerify(PlaintextPIN, true)
           else
+          begin
+            AddLog('Verify PIN not allowed.');
             StepResult := false;
+          end;
         end;
       cvrSignature:
         begin

@@ -106,16 +106,24 @@ var
   i: Integer;
   emv: TEMV;
   bank: TVirtualBank;
-  trType: TTransactionType;
+  trParams: TTRansactionParameters;
 begin
   try
+    // transaction parameters
     case cbTransactionType.ItemIndex of
-      0: trType := ttOffline;
-      1: trType := ttOnline;
+      0: trParams.TransactionType := ttOffline;
+      1: trParams.TransactionType := ttOnline;
     else
-      trType := ttOnline;
+      trParams.TransactionType := ttOnline;
     end;
 
+    trParams.CVMFilter := [
+      cvcAlways,
+      cvcIfTerminalSupportsCVM,
+      cvcIfNotUnattendedCashNotManualCashNotCashback
+    ];
+
+    // processing
     if cbReaders.ItemIndex < 0 then exit;
     ClearLog;
 
@@ -248,7 +256,7 @@ begin
 
     emv.PlaintextPIN := edPIN.Text;
     emv.VerifyPIN := cbVerifyPIN.Checked;
-    if not emv.CVM and not cbIgnoreCVM.Checked then exit;
+    if not emv.CVM(trParams.CVMFilter) and not cbIgnoreCVM.Checked then exit;
 
     // TEST!!!
 //    emv.RunPINVerify(emv.PlaintextPIN, false);
@@ -292,7 +300,7 @@ begin
 
     // AC
     bank := TVirtualBank.Create;
-    if not emv.AC(bank, trType) then exit;
+    if not emv.AC(bank, trParams.TransactionType) then exit;
 
 
     // Issuer scripts processing
