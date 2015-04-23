@@ -85,7 +85,7 @@ type
     function DecodeStr: string;
   end;
 
-  // Issuer Application Data
+  // Issuer Application Data (IAD)
   rIAD = packed record
     Valid: boolean;
 
@@ -100,6 +100,33 @@ type
     function Deserialize(s: AnsiString): boolean;
     function DecodeStr: string;
   end;
+
+  // 9F66 Terminal Transaction Qualifiers (TTQ)
+  rTTQ = packed record
+    Valid: boolean;
+    Raw: AnsiString;
+
+    MSDsupported,
+    qVSDCsupported,
+    EMVContactChipSupported,
+    OfflineOnlyReader,
+    OnlinePINSupported,
+    SignatureSupported,
+    OfflineDataAuthenticationForOnlineSupported,
+
+    OnlineCryptogramRequired,
+    CVMRequired,
+    OfflinePINSupportedContact,
+
+    IssuerUpdateProcessingSupported,
+    MobileFunctionalitySupported: boolean;
+
+    procedure Clear;
+    function Serialize: AnsiString;
+    function Deserialize(s: AnsiString): boolean;
+    function DecodeStr(Prefix: string): string;
+  end;
+
 
 implementation
 
@@ -427,6 +454,124 @@ begin
   GoOnlineOnNextTransaction := b[4] and $02 <> 0;
   UnableGoOnline := b[4] and $01 <> 0;
   // b5 -- all RFU
+end;
+
+{ rTTQ }
+
+procedure rTTQ.Clear;
+begin
+  Valid := true;
+  Raw := '';
+
+  MSDsupported := false;
+  qVSDCsupported := false;
+  EMVContactChipSupported := false;
+  OfflineOnlyReader := false;
+  OnlinePINSupported := false;
+  SignatureSupported := false;
+  OfflineDataAuthenticationForOnlineSupported := false;
+
+  OnlineCryptogramRequired := false;
+  CVMRequired := false;
+  OfflinePINSupportedContact := false;
+
+  IssuerUpdateProcessingSupported := false;
+  MobileFunctionalitySupported := false;
+end;
+
+function rTTQ.DecodeStr(Prefix: string): string;
+var
+  p: string;
+begin
+  Result := '';
+  if not Valid then
+  begin
+    Result := 'TTQ not valid!';
+    exit;
+  end;
+
+  p := Prefix;
+
+  if MSDsupported then Result := Result + p + 'MSD supported' + #$0D#$0A;
+  if qVSDCsupported then Result := Result + p + 'qVSDC supported' + #$0D#$0A;
+  if EMVContactChipSupported then Result := Result + p + 'EMV contact chip supported' + #$0D#$0A;
+  if OfflineOnlyReader then Result := Result + p + 'Offline-only reader' + #$0D#$0A;
+  if OnlinePINSupported then Result := Result + p + 'Online PIN supported' + #$0D#$0A;
+  if SignatureSupported then Result := Result + p + 'Signature supported' + #$0D#$0A;
+  if OfflineDataAuthenticationForOnlineSupported then
+    Result := Result + p + 'Offline Data Authentication (ODA) for Online Authorizations supported' + #$0D#$0A +
+      'Warning!!!! Readers compliant to this specification set TTQ byte 1 bit 1 (this field) to 0b' + #$0D#$0A;
+
+  if OnlineCryptogramRequired then Result := Result + p + 'Online cryptogram required' + #$0D#$0A;
+  if CVMRequired then Result := Result + p + 'CVM required' + #$0D#$0A;
+  if OfflinePINSupportedContact then Result := Result + p + '(Contact Chip) Offline PIN supported' + #$0D#$0A;
+
+  if IssuerUpdateProcessingSupported then Result := Result + p + 'Issuer Update Processing supported' + #$0D#$0A;
+  if MobileFunctionalitySupported then Result := Result + p + 'Mobile functionality supported (Consumer Device CVM)' + #$0D#$0A;
+end;
+
+function rTTQ.Deserialize(s: AnsiString): boolean;
+var
+  b: byte;
+begin
+  Result := false;
+  Clear;
+  Valid := false;
+
+  if length(s) <> 4 then exit;
+  Raw := s;
+
+  b := byte(s[1]);
+  MSDsupported := b and $80 <> 0;
+  qVSDCsupported := b and $20 <> 0;
+  EMVContactChipSupported := b and $10 <> 0;
+  OfflineOnlyReader := b and $08 <> 0;
+  OnlinePINSupported := b and $04 <> 0;
+  SignatureSupported := b and $02 <> 0;
+  OfflineDataAuthenticationForOnlineSupported := b and $01 <> 0;
+
+  b := byte(s[2]);
+  OnlineCryptogramRequired := b and $80 <> 0;
+  CVMRequired := b and $40 <> 0;
+  OfflinePINSupportedContact := b and $20 <> 0;
+
+  b := byte(s[3]);
+  IssuerUpdateProcessingSupported := b and $80 <> 0;
+  MobileFunctionalitySupported := b and $40 <> 0;
+
+  Result := true;
+  Valid := true;
+end;
+
+function rTTQ.Serialize: AnsiString;
+var
+  b: byte;
+begin
+  Result := '';
+
+  b := 0;
+  if MSDsupported then b := b or $80;
+  if qVSDCsupported then b := b or $20;
+  if EMVContactChipSupported then b := b or $10;
+  if OfflineOnlyReader then b := b or $08;
+  if OnlinePINSupported then b := b or $04;
+  if SignatureSupported then b := b or $02;
+  if OfflineDataAuthenticationForOnlineSupported then b := b or $01;
+  Result := Result + AnsiChar(b);
+
+  b := 0;
+  if OnlineCryptogramRequired then b := b or $80;
+  if CVMRequired then b := b or $40;
+  if OfflinePINSupportedContact then b := b or $20;
+  Result := Result + AnsiChar(b);
+
+  b := 0;
+  if IssuerUpdateProcessingSupported then b := b or $80;
+  if MobileFunctionalitySupported then b := b or $40;
+  Result := Result + AnsiChar(b);
+
+  Result := Result + #$00; // RFU
+  Raw := Result;
 end;
 
 end.

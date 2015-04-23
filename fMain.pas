@@ -5,7 +5,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.StdCtrls, UITypes,
-  defs, PCSCConnector, CardUtils, EMVsys, EMVConst, VISAVirtualBank, Ciphers, TLVSys;
+  defs, PCSCConnector, CardUtils, EMVsys, EMVConst, VISAVirtualBank, Ciphers, TLVSys, emvREC;
 
 type
   TfPOS = class(TForm)
@@ -43,6 +43,10 @@ type
     edTag: TEdit;
     edValue: TEdit;
     btRunContactless: TButton;
+    cbqVSDC: TCheckBox;
+    cbVSDC: TCheckBox;
+    cbMSD: TCheckBox;
+    Label5: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure btRunContactClick(Sender: TObject);
     procedure btRunContactlessClick(Sender: TObject);
@@ -374,11 +378,63 @@ var
   i: Integer;
   emv: TEMV;
   Result: boolean;
+  trParams: TTRansactionParameters;
+  TTQ: rTTQ;
 begin
   try
     if cbReaders.ItemIndex < 0 then exit;
     ClearLog;
 
+    // transaction parameters
+    trParams.TransParams.Clear;
+
+    case cbTransactionType.ItemIndex of
+      0: trParams.TransactionType := ttOffline;
+      1: trParams.TransactionType := ttOnline;
+    else
+      trParams.TransactionType := ttOnline;
+    end;
+
+    trParams.CVMFilter := [
+      cvcAlways,
+      cvcIfTerminalSupportsCVM,
+      cvcIfNotUnattendedCashNotManualCashNotCashback
+    ];
+
+    // 3 types of contactless payment:
+    // MSD
+    if cbMSD.Checked then trParams.OfflineTransactionType := trParams.OfflineTransactionType + [ottMSD];
+    // qVSDC
+    if cbqVSDC.Checked then trParams.OfflineTransactionType := trParams.OfflineTransactionType + [ottqVSDC];
+    // VSDC
+    if cbVSDC.Checked then trParams.OfflineTransactionType := trParams.OfflineTransactionType + [ottVSDC];
+
+    // 9F66 Terminal Transaction Qualifiers (TTQ).
+    TTQ.Clear;
+    TTQ.MSDsupported := ottMSD in trParams.OfflineTransactionType;
+    TTQ.qVSDCsupported := ottqVSDC in trParams.OfflineTransactionType;
+    TTQ.OnlinePINSupported := true;
+    TTQ.SignatureSupported := true;
+    AddLog('- TTQ: ' + Bin2Hex(TTQ.Raw));
+    AddLog(TTQ.DecodeStr('^'));
+
+    trParams.TransParams.Valid := true;
+    // 9F66 квалификаторы транзакции для терминала.
+    trParams.TransParams.AddTag(#$9F#$66, TTQ.Serialize);
+    //9F02:(Amount, Authorised (Numeric)) len:6
+    trParams.TransParams.AddTag(#$9F#$02, #$00#$00#$00#$00#$01#$00);
+    //9F03:(Amount, Other (Numeric)) len:6
+    trParams.TransParams.AddTag(#$9F#$03, #$00#$00#$00#$00#$00#$00);
+    //9F1A:(Terminal Country Code) len:2
+    trParams.TransParams.AddTag(#$9F#$1A, 'ru');
+    //5F2A:(Transaction Currency Code) len:2
+    trParams.TransParams.AddTag(#$5F#$2A, #$09#$99);  // n/a
+    //9A:(Transaction Date) len:3
+    trParams.TransParams.AddTag(#$9A, #$00#$00#$00);
+    //9C:(Transaction Type) len:1   |  00 => Goods and service #01 => Cash
+    trParams.TransParams.AddTag(#$9C, #$00);
+
+    // processing
     pcscC := TPCSCConnector.Create(Application);
     pcscC.APDULogging := cbAPDULogging.Checked;
 
@@ -429,7 +485,6 @@ begin
 
       AddLog('');
       AddLog('* * * Trying  PSE');
-      emv.GetAIDsByPSE('1PAY.SYS.DDF01');
       emv.GetAIDsByPSE('2PAY.SYS.DDF01');
 
       if cbPSEForce.Checked then
@@ -459,6 +514,37 @@ begin
        AddLog('* Cant select app. EXIT!');
        exit;
      end;
+
+     AddLog('* * * Get Processing Options');
+
+     // fill PDOL fields
+     trParams.FillDOL(emv.GetPDOL);
+     // 9F37 Unpredictable Number
+     emv.SetGPO_PDOL(#$9F#$37, emv.RandomNumber);
+
+     AddLog('PDOL: ');
+     AddLog(emv.FCIPTSelectedApp.PDOL.DecodeStr('^'));
+
+     if not emv.GPO then
+     begin
+       AddLog('GPO failed(');
+       exit;
+     end;
+
+     edLogName.Text := Bin2HexExt(emv.AFLListGetParam(#$5A), false, true);
+
+     // procedding restrictions
+     emv.ProcessingRestrictions;
+
+     // get fDDA version here 9F69
+     emv.AFLListGetParam(#$9F#$69);
+
+     if emv.GPORes.AIP.DDAsupported then
+     begin
+       if not emv.DDA then exit;
+     end
+     else
+       AddLog('* DDA is not supported according to AIP');
 
      //!!!!!!!!!!!!!!!!
 

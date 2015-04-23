@@ -19,6 +19,8 @@ type
   end;
 
   TTransactionType = (ttOffline, ttOnline);
+  TOfflineTransType = (ottMSD, ottqVSDC, ottVSDC);
+  TOfflineTransTypeSet = set of TOfflineTransType;
 
   CVMRule1 = (cvrFailCVMprocessing, cvrPlaintextPINverificationbyICC, cvmEncipheredPINverifiedonline,
     cvrPlainPINverifybyICCandSignature, cvrEncipheredPINverifybyICC, cvrEncpiheredPINverifybyICCandSignature,

@@ -2,7 +2,7 @@ object fPOS: TfPOS
   Left = 0
   Top = 0
   Caption = 'Test POS terminal'
-  ClientHeight = 760
+  ClientHeight = 933
   ClientWidth = 1105
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -18,10 +18,11 @@ object fPOS: TfPOS
     Left = 0
     Top = 0
     Width = 1105
-    Height = 249
+    Height = 321
     Align = alTop
     BevelOuter = bvNone
     TabOrder = 0
+    ExplicitTop = -6
     object Label1: TLabel
       Left = 16
       Top = 24
@@ -37,8 +38,8 @@ object fPOS: TfPOS
       Caption = 'PIN'
     end
     object Label3: TLabel
-      Left = 257
-      Top = 219
+      Left = 255
+      Top = 197
       Width = 95
       Height = 16
       Caption = 'Transaction type'
@@ -49,6 +50,13 @@ object fPOS: TfPOS
       Width = 81
       Height = 16
       Caption = 'Issuer scripts:'
+    end
+    object Label5: TLabel
+      Left = 255
+      Top = 224
+      Width = 198
+      Height = 16
+      Caption = 'Contactless transactions accepted:'
     end
     object cbReaders: TComboBox
       Left = 69
@@ -70,7 +78,7 @@ object fPOS: TfPOS
     end
     object btRunContact: TButton
       Left = 16
-      Top = 144
+      Top = 216
       Width = 129
       Height = 25
       Caption = 'Run contact'
@@ -120,8 +128,8 @@ object fPOS: TfPOS
       Text = '1234'
     end
     object Button2: TButton
-      Left = 1016
-      Top = 216
+      Left = 1022
+      Top = 16
       Width = 75
       Height = 25
       Caption = 'Test'
@@ -148,7 +156,7 @@ object fPOS: TfPOS
     end
     object btSaveLog: TButton
       Left = 158
-      Top = 216
+      Top = 288
       Width = 75
       Height = 25
       Caption = 'Save log'
@@ -157,7 +165,7 @@ object fPOS: TfPOS
     end
     object edLogName: TEdit
       Left = 16
-      Top = 216
+      Top = 288
       Width = 136
       Height = 24
       TabOrder = 15
@@ -179,8 +187,8 @@ object fPOS: TfPOS
       TabOrder = 9
     end
     object cbTransactionType: TComboBox
-      Left = 358
-      Top = 216
+      Left = 356
+      Top = 194
       Width = 145
       Height = 24
       Style = csDropDownList
@@ -298,21 +306,53 @@ object fPOS: TfPOS
     end
     object btRunContactless: TButton
       Left = 16
-      Top = 175
+      Top = 247
       Width = 129
       Height = 25
       Caption = 'Run contactless'
       TabOrder = 13
       OnClick = btRunContactlessClick
     end
+    object cbqVSDC: TCheckBox
+      Left = 256
+      Top = 269
+      Width = 257
+      Height = 17
+      Caption = 'qVSDC (Quick Visa Smart Debit/Credit)'
+      Checked = True
+      State = cbChecked
+      TabOrder = 28
+    end
+    object cbVSDC: TCheckBox
+      Left = 257
+      Top = 292
+      Width = 244
+      Height = 17
+      Caption = 'VSDC (Visa Smart Debit/Credit)'
+      Checked = True
+      State = cbChecked
+      TabOrder = 29
+    end
+    object cbMSD: TCheckBox
+      Left = 255
+      Top = 246
+      Width = 234
+      Height = 17
+      Caption = 'MSD (Magnetic Stripe Data)'
+      Checked = True
+      State = cbChecked
+      TabOrder = 30
+    end
   end
   object meLog: TMemo
     Left = 0
-    Top = 249
+    Top = 321
     Width = 1105
-    Height = 511
+    Height = 612
     Align = alClient
     ScrollBars = ssVertical
     TabOrder = 1
+    ExplicitTop = 249
+    ExplicitHeight = 511
   end
 end

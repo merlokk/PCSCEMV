@@ -276,6 +276,7 @@ type
   // transaction parameters
   TTRansactionParameters = packed record
     TransactionType: TTransactionType;
+    OfflineTransactionType: TOfflineTransTypeSet;
     CVMFilter: CVMRule2Set;
     TransParams: tlvPDOL;
 
@@ -2734,6 +2735,7 @@ end;
 procedure TTRansactionParameters.Clear;
 begin
   TransactionType := ttOnline;
+  OfflineTransactionType := [];
   CVMFilter := [cvcIfTerminalSupportsCVM];
   TransParams.Clear;
   TransParams.Valid := true;
