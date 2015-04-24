@@ -113,6 +113,28 @@ type
     function Deserialize(s: AnsiString): boolean;
   end;
 
+  // 9F6C Card Transaction Qualifiers (CTQ)
+  rCTQ = packed record
+    Valid: boolean;
+    Raw: AnsiString;
+
+    OnlinePINRequired,
+    SignatureRequired,
+    GoOnlineOfflineDataAuthFail,
+    SwitchInterfaceOfflineDataAuthFail,
+    GoOnlineAppExpired,
+    SwitchInterfCashTransactions,
+    SwitchInterfCashbackTransactions,
+
+    //Note: Bit 8 is not used by cards compliant to this specification, and is set to 0b.
+    ConsumerDeviceCVMPerformed,
+    CardSuppIssuerUpdate: boolean;
+
+    procedure Clear;
+    function Deserialize(s: AnsiString): boolean;
+    function DecodeStr(Prefix: string): string;
+  end;
+
   // 9F66 Terminal Transaction Qualifiers (TTQ)
   rTTQ = packed record
     Valid: boolean;
@@ -139,6 +161,65 @@ type
     function DecodeStr(Prefix: string): string;
   end;
 
+  // 82 Application Interchange Profile
+  rAIP = packed record
+    Valid: boolean;
+
+    sAIP: AnsiString;
+
+    CDASupported,
+    IssuerAuthenticationSupported,
+    TerminalRiskManagementPref,
+    CardholderVerificationSupported,
+    DDAsupported,
+    SDAsupported,
+
+    MSDsupported : boolean;
+
+    function Deserialize(s: AnsiString): boolean;
+    function DecodeStr: string;
+  end;
+
+  // 94	Application File Locator
+  rAFL = packed record
+    Valid: boolean;
+
+    SFI,
+    StartRecN,
+    EndRecN,
+    OfflineCount: byte;
+
+    function Deserialize(s: AnsiString): boolean;
+  end;
+
+  // 8E	Cardholder Verification Method (CVM) List
+  rCVMElm  = packed record
+    Valid: boolean;
+    Raw: AnsiString;
+
+    canGoNext: boolean;
+    Rule: CVMRule1;
+    Condition: CVMRule2;
+
+    function Deserialize(s: AnsiString): boolean;
+    function GetStr: string;
+  end;
+
+  // 8E	Cardholder Verification Method (CVM) List
+  rCVMList = packed record
+    Valid: boolean;
+
+    sAmountX,
+    sAmountY: AnsiString;
+
+    Items: array of rCVMElm;
+
+    AmountX,
+    AmountY: int64;
+
+    function Deserialize(s: AnsiString): boolean;
+    function GetStr: string;
+  end;
 
 implementation
 
@@ -609,6 +690,262 @@ begin
   CardTransactionQualifiers := Copy(s, 6, 2);
 
   Valid := true;
+end;
+
+{ rCTQ }
+
+procedure rCTQ.Clear;
+begin
+  Valid := false;
+  Raw := '';
+
+  OnlinePINRequired := false;
+  SignatureRequired := false;
+  GoOnlineOfflineDataAuthFail := false;
+  SwitchInterfaceOfflineDataAuthFail := false;
+  GoOnlineAppExpired := false;
+  SwitchInterfCashTransactions := false;
+  SwitchInterfCashbackTransactions := false;
+
+  //Note: Bit 8 is not used by cards compliant to this specification, and is set to 0b.
+  ConsumerDeviceCVMPerformed := false;
+  CardSuppIssuerUpdate := false;
+end;
+
+function rCTQ.DecodeStr(Prefix: string): string;
+var
+  p: string;
+begin
+  Result := '';
+  if not Valid then
+  begin
+    Result := 'TTQ not valid!';
+    exit;
+  end;
+
+  p := Prefix;
+
+  if OnlinePINRequired then Result := Result + p + 'Online PIN Required' + #$0D#$0A;
+  if SignatureRequired then Result := Result + p + 'Signature Required' + #$0D#$0A;
+  if GoOnlineOfflineDataAuthFail then Result := Result + p + 'Go Online if Offline Data Authentication Fails and Reader is online capable' + #$0D#$0A;
+  if SwitchInterfaceOfflineDataAuthFail then Result := Result + p + 'Switch Interface if Offline Data Authentication fails and Reader supports VIS' + #$0D#$0A;
+  if GoOnlineAppExpired then Result := Result + p + 'Go Online if Application Expired' + #$0D#$0A;
+  if SwitchInterfCashTransactions then Result := Result + p + 'Switch Interface for Cash Transactions' + #$0D#$0A;
+  if SwitchInterfCashbackTransactions then Result := Result + p + 'Switch Interface for Cashback Transactions' + #$0D#$0A;
+
+  if ConsumerDeviceCVMPerformed then
+    Result := Result + p + 'Consumer Device CVM Performed' + #$0D#$0A +
+      'Warning!!!! Bit 8 (this!) is not used by cards compliant to this specification, and is set to 0b.' + #$0D#$0A;
+  if CardSuppIssuerUpdate then Result := Result + p + 'Card supports Issuer Update Processing at the POS' + #$0D#$0A;
+end;
+
+function rCTQ.Deserialize(s: AnsiString): boolean;
+var
+  b: byte;
+begin
+  Result := false;
+  Clear;
+  Valid := false;
+
+  if length(s) <> 2 then exit;
+  Raw := s;
+
+  b := byte(s[1]);
+  OnlinePINRequired := b and $80 <> 0;
+  SignatureRequired := b and $40 <> 0;
+  GoOnlineOfflineDataAuthFail := b and $20 <> 0;
+  SwitchInterfaceOfflineDataAuthFail := b and $10 <> 0;
+  GoOnlineAppExpired := b and $08 <> 0;
+  SwitchInterfCashTransactions := b and $04 <> 0;
+  SwitchInterfCashbackTransactions := b and $02 <> 0;
+
+  b := byte(s[2]);
+  //Note: Bit 8 is not used by cards compliant to this specification, and is set to 0b.
+  ConsumerDeviceCVMPerformed := b and $80 <> 0;
+  CardSuppIssuerUpdate := b and $40 <> 0;
+
+  Result := true;
+  Valid := true;
+end;
+
+{ rAIP }
+
+function rAIP.DecodeStr: string;
+begin
+  if Valid then
+    Result := DecodeAIP(sAIP)
+  else
+    Result := 'AIP not valid';
+end;
+
+function rAIP.Deserialize(s: AnsiString): boolean;
+var
+  waip: word;
+begin
+  Valid := false;
+  Result := false;
+  sAIP := '';
+
+  if length(s) <> 2 then exit;
+  waip := byte(s[1]) + byte(s[2]) shl 8;
+  sAIP := s;
+
+  CDASupported := (waip and $01 <> 0);
+  IssuerAuthenticationSupported := (waip and $04 <> 0);
+  TerminalRiskManagementPref := (waip and $08 <> 0);
+  CardholderVerificationSupported := (waip and $10 <> 0);
+  DDAsupported := (waip and $20 <> 0);
+  SDAsupported := (waip and $40 <> 0);
+
+  MSDsupported := (waip and $8000 <> 0);
+
+  Valid := true;
+  Result := true;
+end;
+
+{ rAFL }
+
+function rAFL.Deserialize(s: AnsiString): boolean;
+begin
+  Result := false;
+  Valid := false;
+
+  SFI := 0;
+  StartRecN := 0;
+  EndRecN := 0;
+  OfflineCount := 0;
+
+  if Length(s) <> 4 then exit;
+
+  SFI := byte(s[1]) shr 3;
+  StartRecN := byte(s[2]);
+  EndRecN := byte(s[3]);
+  OfflineCount := byte(s[4]);
+
+  Result := true;
+  Valid := true;
+end;
+
+{ rCVMElm }
+
+function rCVMElm.Deserialize(s: AnsiString): boolean;
+var
+  b: byte;
+begin
+  Result := false;
+  Valid := false;
+  Raw := '';
+
+  if (Length(s) <>2) then exit;
+
+  Raw := s;
+
+  // CV Rule Byte 1
+  b := byte(s[1]);
+  canGoNext := b and $40 <> 0;
+  b := b and $3F;
+  Rule := cvrFailCVMprocessing;
+  if b = $00 then Rule := cvrFailCVMprocessing;
+  if b = $01 then Rule := cvrPlaintextPINverificationbyICC;
+  if b = $02 then Rule := cvmEncipheredPINverifiedonline;
+  if b = $03 then Rule := cvrPlainPINverifybyICCandSignature;
+  if b = $04 then Rule := cvrEncipheredPINverifybyICC;
+  if b = $05 then Rule := cvrEncpiheredPINverifybyICCandSignature;
+  if b in [$06..$1D] then Rule := cvrRFU;
+  if b = $1E then Rule := cvrSignature;
+  if b = $1F then Rule := cvrNoCVMrequired;
+  if b in [$20..$3E] then Rule := cvrRFU;
+  if b = $3F then Rule := cvrNA;
+
+  // CV Rule Byte 2
+  b := byte(s[2]);
+  Condition := cvcAlways;
+  if b = $00 then Condition := cvcAlways;
+  if b = $01 then Condition := cvcIfUnattendedCash;
+  if b = $02 then Condition := cvcIfNotUnattendedCashNotManualCashNotCashback;
+  if b = $03 then Condition := cvcIfTerminalSupportsCVM;
+  if b = $04 then Condition := cvcIfManualCash;
+  if b = $05 then Condition := cvcIfPurchaseWithCashback;
+  if b = $06 then Condition := cvcIfTransactionInAppCurrencyAndUnderX;
+  if b = $07 then Condition := cvcIfTransactionInAppCurrencyAndOverX;
+  if b = $08 then Condition := cvcIfTransactionInAppCurrencyAndUnderY;
+  if b = $09 then Condition := cvcIfTransactionInAppCurrencyAndOverY;
+  if b in [$20..$7F] then Condition := cvcRFU;
+  if b in [$80..$FF] then Condition := cvcRFUIndividualPayments;
+
+
+  Result := true;
+  Valid := true;
+end;
+
+function rCVMElm.GetStr: string;
+begin
+  Result := Bin2HexExt(Raw, true, true) + ': ' + CVMRule2Str[Condition] + ' --> ' +
+    CVMRule1Str[Rule] + '.';
+
+  if canGoNext then
+    Result := Result + ' NEXT'
+  else
+    Result := Result + ' STOP';
+end;
+
+{ rCVMList }
+
+function rCVMList.Deserialize(s: AnsiString): boolean;
+var
+  len: integer;
+  i: Integer;
+  elm: rCVMElm;
+begin
+  Result := false;
+  Valid := false;
+
+  sAmountX := '';
+  sAmountY := '';
+  SetLength(Items, 0);
+
+  AmountX := 0;
+  AmountY := 0;
+
+  len := length(s) - 8;
+  if (Length(s) < 6) or (len mod 2 <> 0) then exit;
+
+  sAmountX := Copy(s, 1, 4);
+  sAmountY := Copy(s, 5, 4);
+
+  AmountX := EMVIntegerDecode(sAmountX);
+  AmountY := EMVIntegerDecode(sAmountY);
+
+  for i := 0 to len div 2 - 1 do
+  begin
+    elm.Deserialize(Copy(s, 9 + i * 2, 2));
+    if elm.Valid then
+    begin
+      SetLength(Items, length(Items) + 1);
+      Items[length(Items) - 1] := elm;
+    end;
+  end;
+
+  Result := true;
+  Valid := true;
+end;
+
+function rCVMList.GetStr: string;
+var
+  i: Integer;
+begin
+  if not Valid then
+  begin
+    Result := 'Cardholder Verification Method(CVM) list not valid!' + #$0D#$0A;
+    exit;
+  end;
+
+  Result := 'Cardholder Verification Method(CVM) list:' + #$0D#$0A;
+  Result := Result + 'amount1:' + Bin2HexExt(sAmountX, true, true) + '=' + IntToStr(AmountX) + #$0D#$0A;
+  Result := Result + 'amount2:' + Bin2HexExt(sAmountY, true, true) + '=' + IntToStr(AmountY) + #$0D#$0A;
+
+  for i := 0 to length(Items) - 1 do
+    Result := Result + Items[i].GetStr + #$0D#$0A;
 end;
 
 end.

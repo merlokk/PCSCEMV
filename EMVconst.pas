@@ -44,13 +44,14 @@ var
   EMVTags: TList<TEMVTag>;
 
 const
-  AIPStr: Array [0..5] of TKeyValueItem = (
+  AIPStr: Array [0..6] of TKeyValueItem = (
 	  (id: $01; Value:'CDA Supported (Combined Dynamic Data Authentication / Application Cryptogram Generation)'),
 	  (id: $04; Value:'Issuer authentication is supported'),
 	  (id: $08; Value:'Terminal risk management is to be performed'),
 	  (id: $10; Value:'Cardholder verification is supported'),
 	  (id: $20; Value:'DDA supported (Dynamic Data Authentication)'),
-	  (id: $40; Value:'SDA supported (Static Data Authentiction)')
+	  (id: $40; Value:'SDA supported (Static Data Authentiction)'),
+	  (id: $8000; Value:'MSD is supported (Magnetic Stripe Data)')
 	  );
 
   CVMRule1Str: Array[CVMRule1] of string = (
@@ -282,6 +283,8 @@ begin
   EMVTags.Add(EMVTag(#$9F#$4D,	'Log Entry'));
   EMVTags.Add(EMVTag(#$9F#$4E,	'Merchant Name and Location'));
   EMVTags.Add(EMVTag(#$9F#$4F,	'Log Format'));
+  EMVTags.Add(EMVTag(#$9F#$66,	'Terminal Transaction Qualifiers (TTQ)'));
+  EMVTags.Add(EMVTag(#$9F#$6C,	'Card Transaction Qualifiers (CTQ)'));
   EMVTags.Add(EMVTag(#$9F#$69,	'Unpredictable Number Data Object List (UDOL)'));
   EMVTags.Add(EMVTag(#$A5,	'File Control Information (FCI) Proprietary Template'));
   EMVTags.Add(EMVTag(#$BF#$0C,	'File Control Information (FCI) Issuer Discretionary Data'));
