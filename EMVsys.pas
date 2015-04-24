@@ -28,6 +28,7 @@ type
     teAppTemplate,        // 61   Application Template
     teRespTmplF1,         // 80   Response Message Template Format 1
     teRespTmplF2,         // 77   Response Message Template Format 2
+    teCTQ,                // 9F6C Card Transaction Qualifiers (CTQ)
     teLast);
 
   TTLV = class;
@@ -427,6 +428,7 @@ function TTLV.GetStrTree: string;
 var
  res: string;
  pdol: tlvPDOL;
+ ctq: rCTQ;
 begin
   Result := '';
 
@@ -450,6 +452,10 @@ begin
           if elm.vTag = teCDOL2 then
             if pdol.Deserialize(elm) then
               res := res + pdol.DecodeStr(StringOfChar('^', elm.Level + 2));
+          // CTQ
+          if elm.vTag = teCTQ then
+            if ctq.Deserialize(elm.Value) then
+              res := res + ctq.DecodeStr(StringOfChar('^', elm.Level + 2));
         end);
   Iterate;
 
@@ -476,6 +482,8 @@ begin
   if Tag = #$80 then Result := teRespTmplF1;
   // 77   Response Message Template Format 2
   if Tag = #$77 then Result := teRespTmplF2;
+  // 9F6C Card Transaction Qualifiers (CTQ)
+  if Tag = #$9F#$6C then Result := teCTQ;
 
 end;
 
