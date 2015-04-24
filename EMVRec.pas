@@ -101,6 +101,18 @@ type
     function DecodeStr: string;
   end;
 
+  // 9F69 Card Authentication Related Data
+  rCAuth = packed record
+    Valid: boolean;
+
+    fDDAVersion: byte;
+    CardUnpredictableNumber,
+    CardTransactionQualifiers: AnsiString;
+
+    procedure Clear;
+    function Deserialize(s: AnsiString): boolean;
+  end;
+
   // 9F66 Terminal Transaction Qualifiers (TTQ)
   rTTQ = packed record
     Valid: boolean;
@@ -572,6 +584,31 @@ begin
 
   Result := Result + #$00; // RFU
   Raw := Result;
+end;
+
+{ rCAuth }
+
+procedure rCAuth.Clear;
+begin
+  Valid := false;
+
+  fDDAVersion := 0;
+  CardUnpredictableNumber := '';
+  CardTransactionQualifiers := '';
+end;
+
+function rCAuth.Deserialize(s: AnsiString): boolean;
+begin
+  Result := false;
+  Clear;
+
+  if not (length(s) in [1, 5, 7]) then exit;
+
+  fDDAVersion := byte(s[1]);
+  CardUnpredictableNumber := Copy(s, 2, 4);
+  CardTransactionQualifiers := Copy(s, 6, 2);
+
+  Valid := true;
 end;
 
 end.

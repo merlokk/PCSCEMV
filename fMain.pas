@@ -380,6 +380,7 @@ var
   Result: boolean;
   trParams: TTRansactionParameters;
   TTQ: rTTQ;
+  CAuth: rCAuth;
 begin
   try
     if cbReaders.ItemIndex < 0 then exit;
@@ -536,10 +537,12 @@ begin
      // procedding restrictions
      emv.ProcessingRestrictions;
 
-     // get fDDA version here 9F69
-     emv.AFLListGetParam(#$9F#$69);
+     // 9F69 Card Authentication Related Data
+     CAuth.Deserialize(emv.AFLListGetParam(#$9F#$69));
 
-     if emv.GPORes.AIP.DDAsupported then
+     if  (CAuth.Valid) and
+         (CAuth.fDDAVersion = 1) and
+         (emv.GPORes.AIP.DDAsupported) then
      begin
        if not emv.DDA then exit;
      end
