@@ -19,7 +19,7 @@
 15. Execute external authenticate
 16. Execute AC2
 17. Check ARQC cryptogram
-18. Issuer scropts processing
+18. Issuer scripts processing
 
 ##Working parts of qVSDC:
 1. ATR|ATS
