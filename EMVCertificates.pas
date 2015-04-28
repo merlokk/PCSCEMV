@@ -82,13 +82,13 @@ type
 
     HashAlgorithmId,
     ICCDynDataLenCnt: byte;
-    ICCDynDataLen,
+    ICCDynData,
     PadPattern,
     Hash: AnsiString;
 
     // parameters!
     CKeySize: Integer;
-    CRandomNum: AnsiString;
+    CHashData: AnsiString;
 
     procedure Clear;
     function Deserialize(s: AnsiString): boolean;
@@ -459,7 +459,7 @@ begin
 
   HashAlgorithmId := 0;
   ICCDynDataLenCnt := 0;
-  ICCDynDataLen := '';
+  ICCDynData := '';
   PadPattern := '';
   Hash := '';
 end;
@@ -481,7 +481,7 @@ begin
 
   HashAlgorithmId := byte(s[3]);
   ICCDynDataLenCnt := byte(s[4]);
-  ICCDynDataLen := Copy(s, 5, ICCDynDataLenCnt);
+  ICCDynData := Copy(s, 5, ICCDynDataLenCnt);
   PadPattern := Copy(s, 5 + ICCDynDataLenCnt, len - ICCDynDataLenCnt);
   Hash := Copy(s, 5 + len, 20);
 
@@ -501,7 +501,7 @@ begin
 	if Raw[2] <> #$05 then exit;
 
 	// Step 5: Concatenation of Signed Data Format, Hash Algorithm Indicator, ICC Dynamic Data Length, ICC Dynamic Data, Pad Pattern, random number
-  pk := Copy(Raw, 2, 3 + len) + CRandomNum;
+  pk := Copy(Raw, 2, 3 + len) + CHashData;
 
 	// Step 6: Genereate hash from concatenation
   pk := TCipher.SHA1Hash(pk);

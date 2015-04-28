@@ -8,6 +8,7 @@ uses
 // technologypartner.visa.com/download.aspx?id=34
 // https://www.paypass.com/PP_Imp_Guides/PayPass_v3_TTAL2-Testing%20Env_26Feb2013.pdf
 // https://github.com/binaryfoo/emv-bertlv/tree/master/src/main/resources
+// https://www.eftlab.co.uk/index.php/site-map/knowledge-base/243-ca-public-keys
 type
   TVSDCPublicKey = packed record
     RID: string;
@@ -20,7 +21,7 @@ type
   end;
 
 const
-  VSDCPublicKeys: array [0..10] of TVSDCPublicKey = (
+  VSDCPublicKeys: array [0..12] of TVSDCPublicKey = (
     // 1. VSDC CA Production Public Keys
 
     // The 1152-bit VSDC CA Production Public Key is scheduled to expire on 31 December 2017.
@@ -60,6 +61,34 @@ const
          'E2 1C F9 A8';
    ),
 
+   (RID:'A0 00 00 00 03';
+   Index:$51;
+   Modulus: 'DB 5F A2 9D 1F DA 8C 16 34 B0 4D CC FF 14 8A BE' +
+            'E6 3C 77 20 35 C7 98 51 D3 51 21 07 58 6E 02 A9' +
+            '17 F7 C7 E8 85 E7 C4 A7 D5 29 71 0A 14 53 34 CE' +
+            '67 DC 41 2C B1 59 7B 77 AA 25 43 B9 8D 19 CF 2C' +
+            'B8 0C 52 2B DB EA 0F 1B 11 3F A2 C8 62 16 C8 C6' +
+            '10 A2 D5 8F 29 CF 33 55 CE B1 BD 3E F4 10 D1 ED' +
+            'D1 F7 AE 0F 16 89 79 79 DE 28 C6 EF 29 3E 0A 19' +
+            '28 2B D1 D7 93 F1 33 15 23 FC 71 A2 28 80 04 68' +
+            'C0 1A 36 53 D1 4C 6B 48 51 A5 C0 29 47 8E 75 7F';
+   Exponent: '03';
+   Hash: 'unknown';
+   ),
+
+   // here an old 0x51 key!!!!!
+   (RID:'A0 00 00 00 03';
+   Index:$51;
+   Modulus: 'BB E4 38 77 CC 28 C0 CE 1E 14 BC 14 E8 47 73 17' +
+            'E2 18 36 45 31 D1 55 BB 8A C5 B6 3C 0D 6E 28 4D' +
+            'D2 42 59 19 38 99 F9 C0 4C 30 BA F1 67 D5 79 29' +
+            '45 1F 67 AE BD 3B BD 0D 41 44 45 01 84 7D 8F 02' +
+            'F2 C2 A2 D1 48 17 D9 7A E2 62 5D C1 63 BF 8B 48' +
+            '4C 40 FF B5 17 49 CE DD E9 43 4F B2 A0 A4 10 99';
+   Exponent: '03';
+   Hash: 'D3 D9 0B 35 BA 8C 48 73 11 71 EA C4 07 D8 90 05' +
+         'AC F6 F9 DA';
+   ),
 
     // 2. VSDC CA Public Test Keys
 

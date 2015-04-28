@@ -879,7 +879,8 @@ var
   res,
   PubKeyIndx,
   Certificate,
-  DecrCertificate: AnsiString;
+  DecrCertificate,
+  HashData: AnsiString;
   sw: word;
   tlv: TTLV;
   DDOL: tlvPDOL;
@@ -908,7 +909,7 @@ begin
   if length(PubKeyIndx) <> 1 then exit;
 
   EMVPublicKey := GetPublicKey(Copy(FSelectedAID, 1, 5), byte(PubKeyIndx[1]));
-  if EMVPublicKey.Size < 128 then // RSA1024
+  if EMVPublicKey.Size < 96 then // RSA768
   begin
     AddLog('Dont have a public key: ' + Bin2HexExt(Copy(FSelectedAID, 1, 5), true, true) + ': ' +
        IntToHex(byte(PubKeyIndx[1]), 2));
@@ -971,52 +972,69 @@ begin
   ICCPublicKey.Exponent := #$03; // according to EMV4.3, book 3, 6.1, page 55
   ICCPublicKey.Modulus := CertICC.ICCPublicKey;
 
-  // Internal Authenticate, get Signed Dynamic Application Data
-  AddLog('* * * Internal Authenticate (Unpredictable Number: ' + Bin2HexExt(RandomNumber, false, true) + ')');
-
-  // EMV 4.3 Book 3, 6.5.9, page 61
-  // EMV 4.3 Book 2, 6.5.1, page 66
-  DDOL.Deserialize(AFLListGetTag(#$9F#$49));
-  if not DDOL.Valid then
+  // DDA with internal authenticate OR fDDA with filled 0x9F4B tag (GPO result)
+  // EMV kernel3 v2.4, contactless book C-3, C.1., page 147
+  Certificate := AFLListGetParam(#$9F#$4B); // 9F4B: Signed Dynamic Application Data
+  if Certificate <> '' then
   begin
-    // fill default DDOL
-    DDOL.Clear;
-    DDOL.Valid := true;
-    DDOL.AddTag(#$9F#$37, #$04);
-    AddLog('Card have no DDOL record. Default DDOL used.');
-  end;
-
-  DDOL.FillData;
-  DDOL.SetTagValue(#$9F#$37, RandomNumber);
-
-  AddLog('DDOL: ');
-  AddLog(DDOL.DecodeStr('^'));
-
-  res := FpcscC.InternalAuthenticate(DDOL.SerializeValues, sw);
-  AddLog('****' + Bin2HexExt(res, true, true));
-  if sw <> $9000 then
+    // fDDA !!!
+    AddLog('* * * Got Signed Dynamic Application Data (9F4B) form GPO. Maybe fDDA from qVSDC...');
+    AddLog('Unpredictable Number: ' + Bin2HexExt(RandomNumber, false, true));
+    HashData := RandomNumber +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$02) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$5F#$2A) +
+      AFLListGetParam(#$9F#$69);
+  end
+  else
   begin
-    AddLog('Internal Authenticate failed. res=' + IntToHex(sw, 4));
-    exit;
-  end;
+    HashData := RandomNumber;
+    // Internal Authenticate, get Signed Dynamic Application Data
+    AddLog('* * * Internal Authenticate (Unpredictable Number: ' + Bin2HexExt(RandomNumber, false, true) + ')');
 
-  if length(res) = 0 then exit;
+    // EMV 4.3 Book 3, 6.5.9, page 61
+    // EMV 4.3 Book 2, 6.5.1, page 66
+    DDOL.Deserialize(AFLListGetTag(#$9F#$49));
+    if not DDOL.Valid then
+    begin
+      // fill default DDOL
+      DDOL.Clear;
+      DDOL.Valid := true;
+      DDOL.AddTag(#$9F#$37, #$04);
+      AddLog('Card have no DDOL record. Default DDOL used.');
+    end;
 
-  tlv := TTLV.Create;
-  tlv.Deserealize(res);
-  if LoggingTLV then AddLog(tlv.GetStrTree);
-  try
-    case res[1] of
-    #$80: // 80 Response Message Template Format 1
-        Certificate := tlv.Value;
+    DDOL.FillData;
+    DDOL.SetTagValue(#$9F#$37, RandomNumber);
 
-    #$77: // 77 Response Message Template Format 2
-        Certificate := tlv.FindPath([#$9F#$4B]).Value;
-    else
+    AddLog('DDOL: ');
+    AddLog(DDOL.DecodeStr('^'));
+
+    res := FpcscC.InternalAuthenticate(DDOL.SerializeValues, sw);
+    AddLog('****' + Bin2HexExt(res, true, true));
+    if sw <> $9000 then
+    begin
+      AddLog('Internal Authenticate failed. res=' + IntToHex(sw, 4));
       exit;
     end;
-  finally
-    tlv.Free;
+
+    if length(res) = 0 then exit;
+
+    tlv := TTLV.Create;
+    tlv.Deserealize(res);
+    if LoggingTLV then AddLog(tlv.GetStrTree);
+    try
+      case res[1] of
+      #$80: // 80 Response Message Template Format 1
+          Certificate := tlv.Value;
+
+      #$77: // 77 Response Message Template Format 2
+          Certificate := tlv.FindPath([#$9F#$4B]).Value;
+      else
+        exit;
+      end;
+    finally
+      tlv.Free;
+    end;
   end;
 
   DecrCertificate := TCipher.RSADecode(Certificate, ICCPublicKey);
@@ -1024,7 +1042,7 @@ begin
   AddLog(Bin2HexExt(DecrCertificate, true, true));
 
   SDAD.CKeySize := ICCPublicKey.Size;
-  SDAD.CRandomNum := RandomNumber;
+  SDAD.CHashData := HashData;
   if not SDAD.Deserialize(DecrCertificate) then
   begin
     AddLog('Signed Dynamic Application Data error');
@@ -1117,6 +1135,13 @@ begin
 
   // get random number from card
   ICCDynamicNumber := FpcscC.GetChallenge(sw);
+  // if command not supported
+  if sw = $6D00 then
+  begin
+    sw := $9000;
+    ICCDynamicNumber := #$00#$00#$00#$00#$00#$00#$00#$00;
+  end;
+
   if sw <> $9000 then
   begin
     AddLog('Command GET CHALLENGE error: ' + IntToHex(sw, 4));
@@ -1997,7 +2022,7 @@ begin
   if length(PubKeyIndx) <> 1 then exit;
 
   EMVPublicKey := GetPublicKey(Copy(FSelectedAID, 1, 5), byte(PubKeyIndx[1]));
-  if EMVPublicKey.Size < 128 then // RSA1024
+  if EMVPublicKey.Size < 96 then // RSA768
   begin
     AddLog('Dont have a public key: ' + Bin2HexExt(Copy(FSelectedAID, 1, 5), true, true) + ': ' +
        IntToHex(byte(PubKeyIndx[1]), 2));
