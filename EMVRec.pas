@@ -392,8 +392,8 @@ begin
   Result := 'IAD not valid.';
   if not Valid then exit;
 
-  Result := 'Derivation key index:' + IntToHex(DerivKeyIndex, 2) + #$0D#$0A;
-  Result := Result + 'Cryptogram version:' + IntToHex(CryptoVersion, 2) + #$0D#$0A;
+  Result := 'Derivation key index:0x' + IntToHex(DerivKeyIndex, 2) + #$0D#$0A;
+  Result := Result + 'Cryptogram version:0x' + IntToHex(CryptoVersion, 2) + #$0D#$0A;
   Result := Result + 'CVR: ' + #$0D#$0A + CVR.DecodeStr;
 end;
 

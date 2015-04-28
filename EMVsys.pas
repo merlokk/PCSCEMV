@@ -79,6 +79,7 @@ type
     procedure Clear;
     procedure FillData;
     function SetTagValue(Tag, Value: AnsiString): boolean;
+    function GetTagValue(Tag: AnsiString): AnsiString;
     function AddTag(Tag, Value: AnsiString): boolean;
     function Deserialize(elm: TTLV): boolean;
     function SerializeValues: AnsiString;
@@ -162,6 +163,7 @@ type
 
     function DeserializeF80(data: AnsiString): boolean;  // format 1
     function DeserializeF77(elm: TTLV): boolean;         // format 2
+    function DeserializeGPO(elm: TTLV): boolean;         // from GPO
     function Deserialize(elm: TTLV): boolean;
     function DecodeStr: string;
   private
@@ -1447,6 +1449,13 @@ begin
     GPORes.Deserialize(tlv);
     if LoggingTLV then AddLog(GPORes.DecodeStr);
 
+    if tlv.FindPath([#$9F#$26]) <> nil then
+    begin
+      AC1Result.DeserializeGPO(tlv);
+      AddLog('Application cryptogram:');
+      AddLog(AC1Result.DecodeStr);
+    end;
+
     DAInput := '';
     AddLog('* * * Read records from AFL');
     if length(GPORes.AFL) = 0 then
@@ -2148,6 +2157,21 @@ begin
     Items[i].Value := AnsiString(StringOfChar(#00, Items[i].Len));
 end;
 
+function tlvPDOL.GetTagValue(Tag: AnsiString): AnsiString;
+var
+  i: Integer;
+begin
+  Result := '';
+  if not Valid then exit;
+
+  for i := 0 to length(Items) - 1 do
+    if Items[i].Tag = Tag then
+    begin
+      Result := Items[i].Value;
+      exit;
+    end;
+end;
+
 function tlvPDOL.SerializeValues: AnsiString;
 var
   i: integer;
@@ -2355,7 +2379,9 @@ end;
 
 function tlvRespTmplAC.DecodeStr: string;
 begin
-  Result := 'Cryptogram Information Data (CID):' + CID.DecodeStr + #$0D#$0A +
+  Result := '';
+  if sCID <> '' then Result := 'Cryptogram Information Data (CID):' + CID.DecodeStr + #$0D#$0A;
+  Result := Result +
     'Application Transaction Counter (ATC):' + IntToStr(ATC) + #$0D#$0A +
     'Application Cryptogram (AC):' + Bin2HexExt(AC, true, true) + #$0D#$0A;
   if sIAD <> '' then
@@ -2389,6 +2415,34 @@ begin
   IAD.Deserialize(sIAD);
 
   CID.Deserialize(byte(sCID[1]));
+  ATC := EMVIntegerHexDecode(sATC);
+
+  Result := true;
+  Valid := true;
+end;
+
+function tlvRespTmplAC.DeserializeGPO(elm: TTLV): boolean;
+begin
+  Result := false;
+  Valid := false;
+
+  Clear;
+
+  if elm = nil then exit;
+
+  // 77 Response Message Template Format 2
+  if elm.Tag <> #$77 then exit;
+
+  // 9F36: Application Transaction Counter (ATC)
+  if not elm.GetPathValue([#$9F#$36], sATC) then exit;
+
+  // 9F26: Application Cryptogram
+  if not elm.GetPathValue([#$9F#$26], AC) then exit;
+
+  // 9F10:(Issuer Application Data
+  elm.GetPathValue([#$9F#$10], sIAD); // optional
+  IAD.Deserialize(sIAD);
+
   ATC := EMVIntegerHexDecode(sATC);
 
   Result := true;
@@ -2493,6 +2547,7 @@ begin
   if not elm.GetPathValue([#$9F#$27], sCID) then exit;
 
   // 9F36: Application Transaction Counter (ATC)
+  if not elm.GetPathValue([#$9F#$36], sATC) then exit;
 
   // 9F26: Application Cryptogram
   if not elm.GetPathValue([#$9F#$26], AC) then exit;

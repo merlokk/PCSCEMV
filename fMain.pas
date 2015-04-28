@@ -381,6 +381,11 @@ var
   trParams: TTRansactionParameters;
   TTQ: rTTQ;
   CAuth: rCAuth;
+  bank: TVirtualBank;
+  RawDataARQC,
+  RawDataARPC,
+  ARC,
+  res: AnsiString;
 begin
   try
     if cbReaders.ItemIndex < 0 then exit;
@@ -532,7 +537,21 @@ begin
        exit;
      end;
 
-     edLogName.Text := Bin2HexExt(emv.AFLListGetParam(#$5A), false, true);
+     if emv.GPORes.AIP.MSDsupported then
+     begin
+       AddLog('--> MSD transaction type.');
+       exit
+     end;
+
+     if emv.GPORes.AIP.DDAsupported then
+     begin
+       AddLog('--> qVSDC transaction type.');
+       AddLog('');
+     end;
+
+     // qVSDC path
+     if emv.AFLListGetParam(#$5A) <> '' then
+       edLogName.Text := Bin2HexExt(emv.AFLListGetParam(#$5A), false, true);
 
      // procedding restrictions
      emv.ProcessingRestrictions;
@@ -541,17 +560,119 @@ begin
      CAuth.Deserialize(emv.AFLListGetParam(#$9F#$69));
 
      if  (CAuth.Valid) and
-         (CAuth.fDDAVersion = 1) and
-         (emv.GPORes.AIP.DDAsupported) then
+         (CAuth.fDDAVersion = 1) then
      begin
-       if not emv.DDA then exit;
+       AddLog('* qVSDC path: fDDA supported; (9F69) Card Authentication Related Data is OK.');
+       if emv.GPORes.AIP.DDAsupported then
+       begin
+         if not emv.DDA then exit;
+       end
+       else
+         AddLog('* DDA is not supported according to AIP');
      end
      else
-       AddLog('* DDA is not supported according to AIP');
+       AddLog('* Invalid (9F69) Card Authentication Related Data.');
 
-     //!!!!!!!!!!!!!!!!
+     // qVSDC path
+     if (emv.AC1Result.Valid) and
+        (emv.AC1Result.AC <> '') then
+     begin
+       AddLog('');
+       AddLog('* qVSDC path: cryptogram check');
 
+       AddLog('');
+       AddLog('Application cryptogram:');
+       AddLog(emv.AC1Result.DecodeStr);
 
+       AddLog('* * * Cryptogram verification ARQC');
+
+       RawDataARQC := '';
+       if emv.AC1Result.IAD.CryptoVersion = 17 then
+       begin
+         RawDataARQC := emv.FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$02) +
+           emv.FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$37);
+         RawDataARQC := RawDataARQC + emv.AC1Result.sATC;
+         RawDataARQC := RawDataARQC + Copy(emv.AC1Result.IAD.sCVR, 2, 1); // only byte 2
+       end;
+
+       AddLog('Raw ARQC: ' + Bin2HexExt(RawDataARQC, true, true));
+
+       bank := TVirtualBank.Create;
+       res := bank.CalculateARQC(
+                emv.AFLListGetParam(#$5A),     // PAN
+                emv.AFLListGetParam(#$5F#$34), // PAN Sequence Number
+                RawDataARQC);
+
+       AddLog('Hash raw ARQC: ' + Bin2HexExt(res, true, true));
+       if res = emv.AC1Result.AC then
+       begin
+         AddLog('Cryptogram verification passed');
+       end
+       else
+       begin
+         AddLog('Cryptogram verification failed');
+         emv.TVR.IssuerAuthenticationFailed := true;
+         exit;
+       end;
+
+       case emv.AC1Result.IAD.CVR.AC1Decision of
+         tdAAC:
+             AddLog('Transaction declined.');
+         tdTC:
+             AddLog('Transaction approved offline.')
+       end;
+
+       // here must be a second tap of a card
+
+       AddLog('');
+       AddLog('* * * Processing online request');
+       AddLog('');
+
+       // Authorisation Response Code
+       ARC := bank.GetHostResponse;
+       AddLog('* * * Host Response: ' + Bin2HexExt(ARC, false, true));
+
+       RawDataARPC := emv.AC1Result.AC;
+       for i := 1 to length(RawDataARPC) do
+       begin
+         RawDataARPC[i] := AnsiChar(byte(RawDataARPC[i]) xor byte(ARC[i]));
+         if i >= length(ARC) then break;
+       end;
+
+       AddLog('Raw ARPC: ' + Bin2HexExt(RawDataARPC, true, true));
+
+       res := bank.CalculateARPC(
+                emv.AFLListGetParam(#$5A),     // PAN
+                emv.AFLListGetParam(#$5F#$34), // PAN Sequence Number
+                RawDataARPC);
+
+       if res = '' then
+       begin
+         AddLog('ARPC creation failed.');
+         emv.TVR.IssuerAuthenticationFailed := true;
+         exit;
+       end;
+
+       res := res + ARC;
+       AddLog('ARPC: ' + Bin2HexExt(res, true, true));
+
+{       // external authenticate
+       AddLog('');
+       AddLog('* * * External athenticate');
+       FpcscC.ExternalAuthenticate(res, sw);
+       if sw <> $9000 then
+       begin
+         AddLog('External athenticate error: ' + IntToHex(sw, 4));
+         emv.TVR.IssuerAuthenticationFailed := true;
+         exit;
+       end
+       else
+         AddLog('External athenticate OK');
+}
+       // Issuer Script Commands
+
+       bank.Free;
+     end;
 
 
     finally
