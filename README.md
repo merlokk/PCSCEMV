@@ -19,6 +19,18 @@
 15. Execute external authenticate
 16. Execute AC2
 17. Check ARQC cryptogram
+18. Issuer scropts processing
+
+##Working parts of qVSDC:
+1. ATR|ATS
+2. Get AID by PSE
+3. Get AID by appliation list
+4. Select application
+5. Format PDOL
+6. Execute GPO
+7. Get records from AFL
+8. Make fDDA
+9. External authenticate command
  
 ##Useful links:
 
