@@ -204,6 +204,7 @@ type
     destructor Destroy; override;
 
     procedure Clear;
+    procedure TLVSet(ATag, AValue: AnsiString);
 
     function Deserealize(s: AnsiString): boolean;
     function Serialize: AnsiString;
@@ -283,6 +284,7 @@ type
 
     function AFLListGetParam(Tag: AnsiString): AnsiString;
     function AFLListGetTag(Tag: AnsiString): TTLV;
+    function AFLListAddTag(Tag, Value: AnsiString): boolean;
     function CDOLSetTagValue(Tag, Value: AnsiString): boolean;
     function GetStaticDataAuthTagList: AnsiString;
     function SDA: boolean;
@@ -300,6 +302,9 @@ type
     function FillCDOLRecords(UseGoodTVR: boolean): boolean;
     function AC(bank: TVirtualBank; TransType: TTransactionType): boolean;
     function GenerateAC(sid: rSID; FirstAC: boolean; bank: TVirtualBank; var resAC: tlvRespTmplAC): boolean;
+
+    function qVSDCCryptogramCheck(bank: TVirtualBank): boolean;
+    function qVSDCIssuerAuthenticate(bank: TVirtualBank): boolean;
 
     function RunSimpleIssuerScript(cmd: AnsiChar; bank: TVirtualBank): boolean;
     function RunChangePINIssuerScript(OldPIN, PIN: string; bank: TVirtualBank): boolean;
@@ -511,6 +516,11 @@ begin
   for i := 0 to Items.Count - 1 do Items[i].SetIterator(it);
 end;
 
+procedure TTLV.TLVSet(ATag, AValue: AnsiString);
+begin
+  FTLV.TLVSet(ATag, AValue);
+end;
+
 { TEMV }
 
 function TEMV.AC(bank: TVirtualBank;  TransType: TTransactionType): boolean;
@@ -603,6 +613,33 @@ begin
   end;
 
   Result := true;
+end;
+
+function TEMV.AFLListAddTag(Tag, Value: AnsiString): boolean;
+var
+  i: integer;
+  tlv,
+  cTLV: TTLV;
+begin
+  Result := false;
+  cTLV := nil;
+  for i := 0 to AFLList.Count - 1 do
+    if AFLList[i].Tag = #$01 then
+    begin
+      cTLV := AFLList[i];
+      break;
+    end;
+
+  if cTLV = nil then
+  begin
+    cTLV := TTLV.Create;
+    cTLV.Tag := #$01;
+    AFLList.Add(cTLV);
+  end;
+
+  tlv := TTLV.Create;
+  tlv.TLVSet(Tag, Value);
+  cTLV.Items.Add(tlv);
 end;
 
 function TEMV.AFLListGetParam(Tag: AnsiString): AnsiString;
@@ -1449,12 +1486,12 @@ begin
     GPORes.Deserialize(tlv);
     if LoggingTLV then AddLog(GPORes.DecodeStr);
 
+     // added gpo results to tree parameters if tag 0x77
+    if tlv.Tag = #$77 then AFLList.Add(tlv);
+
+    // qVSDC
     if tlv.FindPath([#$9F#$26]) <> nil then
-    begin
       AC1Result.DeserializeGPO(tlv);
-      AddLog('Application cryptogram:');
-      AddLog(AC1Result.DecodeStr);
-    end;
 
     DAInput := '';
     AddLog('* * * Read records from AFL');
@@ -1499,7 +1536,8 @@ begin
     end;
 
   finally
-    tlv.Free;
+    // added gpo results to tree parameters if tag 0x77
+    if tlv.Tag <> #$77 then tlv.Free;
   end;
 
   Result := true;
@@ -1667,6 +1705,114 @@ begin
     TVR.ExpiredApp := true;
     exit;
   end;
+
+  Result := true;
+end;
+
+function TEMV.qVSDCCryptogramCheck(bank: TVirtualBank): boolean;
+var
+  RawDataARQC,
+  res: AnsiString;
+begin
+  Result := false;
+
+  AddLog('');
+  AddLog('Application cryptogram:');
+  AddLog(AC1Result.DecodeStr);
+
+  AddLog('* * * Cryptogram verification ARQC');
+
+  RawDataARQC := '';
+  if AC1Result.IAD.CryptoVersion = 17 then
+  begin
+    RawDataARQC := FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$02) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$37);
+    RawDataARQC := RawDataARQC + AC1Result.sATC;
+    RawDataARQC := RawDataARQC + Copy(AC1Result.IAD.sCVR, 2, 1); // only byte 2
+  end;
+
+  AddLog('Raw ARQC: ' + Bin2HexExt(RawDataARQC, true, true));
+
+  res := bank.CalculateARQC(
+           AFLListGetParam(#$5A),     // PAN
+           AFLListGetParam(#$5F#$34), // PAN Sequence Number
+           RawDataARQC);
+
+  AddLog('Hash raw ARQC: ' + Bin2HexExt(res, true, true));
+  if res = AC1Result.AC then
+  begin
+    AddLog('Cryptogram verification passed');
+  end
+  else
+  begin
+    AddLog('Cryptogram verification failed');
+    TVR.IssuerAuthenticationFailed := true;
+    exit;
+  end;
+
+  AddLog('');
+  case AC1Result.IAD.CVR.AC1Decision of
+    tdAAC:
+        AddLog('Transaction declined.');
+    tdTC:
+        AddLog('Transaction approved offline.')
+  end;
+end;
+
+function TEMV.qVSDCIssuerAuthenticate(bank: TVirtualBank): boolean;
+var
+  i: integer;
+  RawDataARPC,
+  ARC,
+  data: AnsiString;
+  sw: word;
+begin
+  Result := false;
+
+  AddLog('');
+  AddLog('* * * Processing online request');
+  AddLog('');
+
+  // Authorisation Response Code
+  ARC := bank.GetHostResponse;
+  AddLog('* * * Host Response: ' + Bin2HexExt(ARC, false, true));
+
+  RawDataARPC := AC1Result.AC;
+  for i := 1 to length(RawDataARPC) do
+  begin
+    RawDataARPC[i] := AnsiChar(byte(RawDataARPC[i]) xor byte(ARC[i]));
+    if i >= length(ARC) then break;
+  end;
+
+  AddLog('Raw ARPC: ' + Bin2HexExt(RawDataARPC, true, true));
+
+  data := bank.CalculateARPC(
+           AFLListGetParam(#$5A),     // PAN
+           AFLListGetParam(#$5F#$34), // PAN Sequence Number
+           RawDataARPC);
+
+  if data = '' then
+  begin
+    AddLog('ARPC creation failed.');
+    TVR.IssuerAuthenticationFailed := true;
+    exit;
+  end;
+
+  data := data + ARC;
+  AddLog('ARPC: ' + Bin2HexExt(data, true, true));
+
+  // external authenticate
+  AddLog('');
+  AddLog('* * * External athenticate');
+  FpcscC.ExternalAuthenticate(data, sw);
+  if sw <> $9000 then
+  begin
+    AddLog('External athenticate error: ' + IntToHex(sw, 4));
+    TVR.IssuerAuthenticationFailed := true;
+    exit;
+  end
+  else
+    AddLog('External athenticate OK');
 
   Result := true;
 end;
