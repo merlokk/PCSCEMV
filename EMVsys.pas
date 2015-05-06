@@ -730,7 +730,7 @@ var
   idata: AnsiString;
   sw: Word;
 begin
-  icommand := command + AnsiChar(length(data) + 8);
+  icommand := command + AnsiChar(length(data) + 4);
 
   idata := data + GetIssuerCmdMAC(bank, icommand, data);
   AddLog('Issuer command: ' + Bin2HexExt(icommand + idata, true, true));
