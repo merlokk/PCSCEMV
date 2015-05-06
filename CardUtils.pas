@@ -137,7 +137,7 @@ begin
   hb := '';
   for i := 1 to length(HistoricalBytes) do
     if HistoricalBytes[i] in [' '..'}'] then
-      hb := hb + HistoricalBytes[i]
+      hb := hb + string(HistoricalBytes[i])
     else
       hb := hb + '.';
 

@@ -22,7 +22,6 @@ object fPOS: TfPOS
     Align = alTop
     BevelOuter = bvNone
     TabOrder = 0
-    ExplicitTop = -6
     object Label1: TLabel
       Left = 16
       Top = 24
@@ -302,7 +301,7 @@ object fPOS: TfPOS
       ParentShowHint = False
       ShowHint = True
       TabOrder = 27
-      Text = 'FF 00'
+      Text = 'FF'
     end
     object btRunContactless: TButton
       Left = 16
@@ -352,7 +351,5 @@ object fPOS: TfPOS
     Align = alClient
     ScrollBars = ssVertical
     TabOrder = 1
-    ExplicitTop = 249
-    ExplicitHeight = 511
   end
 end

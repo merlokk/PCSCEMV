@@ -139,7 +139,8 @@ begin
     //9F1A:(Terminal Country Code) len:2
     trParams.TransParams.AddTag(#$9F#$1A, 'ru');
     //5F2A:(Transaction Currency Code) len:2
-    trParams.TransParams.AddTag(#$5F#$2A, #$09#$99);  // n/a
+    // USD 840, EUR 978, RUR 810, RUB 643, RUR 810(old), UAH 980, AZN 031, n/a 999
+    trParams.TransParams.AddTag(#$5F#$2A, #$09#$80);
     //9A:(Transaction Date) len:3
     trParams.TransParams.AddTag(#$9A, #$00#$00#$00);
     //9C:(Transaction Type) len:1   |  00 => Goods and service #01 => Cash
@@ -232,6 +233,9 @@ begin
      end;
 
      AddLog('* * * Get Processing Options');
+
+     // fill PDOL with 0x00
+     emv.GetPDOL.FillData;
 
      // fill PDOL fields
      trParams.FillDOL(emv.GetPDOL);
@@ -430,7 +434,8 @@ begin
     //9F1A:(Terminal Country Code) len:2
     trParams.TransParams.AddTag(#$9F#$1A, 'ru');
     //5F2A:(Transaction Currency Code) len:2
-    trParams.TransParams.AddTag(#$5F#$2A, #$09#$99);  // n/a
+    // USD 840, EUR 978, RUR 810, RUB 643, RUR 810(old), UAH 980, AZN 031, n/a 999
+    trParams.TransParams.AddTag(#$5F#$2A, #$09#$80);
     //9A:(Transaction Date) len:3
     trParams.TransParams.AddTag(#$9A, #$00#$00#$00);
     //9C:(Transaction Type) len:1   |  00 => Goods and service #01 => Cash
@@ -519,6 +524,9 @@ begin
 
      AddLog('* * * Get Processing Options');
 
+     // fill PDOL with 0x00
+     emv.GetPDOL.FillData;
+
      // fill PDOL fields
      trParams.FillDOL(emv.GetPDOL);
      // 9F37 Unpredictable Number
@@ -533,6 +541,13 @@ begin
        exit;
      end;
 
+     // extract PAN from track2
+     if (emv.AFLListGetParam(#$5A) = '') and       // PAN
+        (length(emv.AFLListGetParam(#$57)) >= 8)   // track2
+     then
+       emv.AFLListAddTag(#$5A, Copy(emv.AFLListGetParam(#$57), 1, 8));
+
+     // select path
      if emv.GPORes.AIP.MSDsupported then
      begin
        AddLog('--> MSD transaction type.');
@@ -546,6 +561,8 @@ begin
      end;
 
      // qVSDC path
+
+     // add log name
      if emv.AFLListGetParam(#$5A) <> '' then
        edLogName.Text := Bin2HexExt(emv.AFLListGetParam(#$5A), false, true);
 
@@ -555,26 +572,19 @@ begin
      // 9F69 Card Authentication Related Data
      CAuth.Deserialize(emv.AFLListGetParam(#$9F#$69));
 
-     if (CAuth.Valid) and
-        (CAuth.fDDAVersion = 1) then
+     if emv.GPORes.AIP.DDAsupported then
      begin
-       AddLog('* qVSDC path: fDDA supported; (9F69) Card Authentication Related Data is OK.');
-       if emv.GPORes.AIP.DDAsupported then
+       if (CAuth.Valid) and
+          (CAuth.fDDAVersion = 1) then
        begin
+         AddLog('* qVSDC path: fDDA supported; (9F69) Card Authentication Related Data is OK.');
          if not emv.DDA then exit;
        end
        else
-         AddLog('* DDA is not supported according to AIP');
+         AddLog('* fDDA: Invalid (9F69) Card Authentication Related Data.');
      end
      else
-       AddLog('* Invalid (9F69) Card Authentication Related Data.');
-
-
-     // extract PAN from track2
-     if (emv.AFLListGetParam(#$5A) = '') and       // PAN
-        (length(emv.AFLListGetParam(#$57)) >= 8)   // track2
-     then
-       emv.AFLListAddTag(#$5A, Copy(emv.AFLListGetParam(#$57), 1, 8));
+      AddLog('* DDA is not supported according to AIP');
 
 
      // qVSDC path
@@ -585,10 +595,10 @@ begin
        AddLog('* qVSDC path: cryptogram check');
 
        bank := TVirtualBank.Create;
-       emv.qVSDCCryptogramCheck(bank);
+       if not emv.qVSDCCryptogramCheck(bank) then exit;
 
        // here must be a second tap of a card
-       emv.qVSDCIssuerAuthenticate(bank);
+       if not emv.qVSDCIssuerAuthenticate(bank) then exit;
 
        // Issuer Script Commands
 

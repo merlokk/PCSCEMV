@@ -11,12 +11,19 @@ const
     // VISA
     'A0000000031010',
     'A0000000032010',
+    'A0000000032020',
     'A0000000033010',
+    'A0000000034010',
+    'A0000000035010',
     'A0000000038010',
     'A0000000038002',
+    'A0000000039010',
 
     // MasterCard
-    'A0000000041010'];
+    'A0000000041010',
+    'A0000000042010',
+    'A0000000043010',
+    'A0000000044010'];
 
 type
   TagsEnum = (teUnknown,
@@ -723,7 +730,7 @@ var
   idata: AnsiString;
   sw: Word;
 begin
-  icommand := command + AnsiChar(length(data) + 4);
+  icommand := command + AnsiChar(length(data) + 8);
 
   idata := data + GetIssuerCmdMAC(bank, icommand, data);
   AddLog('Issuer command: ' + Bin2HexExt(icommand + idata, true, true));
@@ -1754,6 +1761,14 @@ begin
       FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$37);
     RawDataARQC := RawDataARQC + AC1Result.sATC;
     RawDataARQC := RawDataARQC + Copy(AC1Result.IAD.sCVR, 2, 1); // only byte 2
+  end;
+
+  if AC1Result.IAD.CryptoVersion = 10 then    // TODO: NOT TESTED!!!!!!
+  begin
+    RawDataARQC := FCIPTSelectedApp.PDOL.SerializeValues + GPORes.sAIP;
+    RawDataARQC := RawDataARQC + AC1Result.sATC;
+    if AC1Result.sIAD <> '' then
+      RawDataARQC := RawDataARQC + Copy(AC1Result.sIAD, 4, length(AC1Result.sIAD));
   end;
 
   AddLog('Raw ARQC: ' + Bin2HexExt(RawDataARQC, true, true));

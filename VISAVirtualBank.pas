@@ -115,8 +115,8 @@ begin
   if (RawData = '') or (ATC = '') then exit;
 
   data := RawData;
-  if length(data) mod 8 <> 0 then
-    data := data + #$80;
+  // strange situation... but....
+  data := data + #$80;
 
   while length(data) mod 8 <> 0 do
     data := data + #$00; // modify here to multiple 0x00
