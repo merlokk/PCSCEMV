@@ -324,10 +324,7 @@ begin
       emv.Free;
 
       AddLog('* PCSC done');
-      if pcscC.Connected then pcscC.Disconnect;
-      if pcscC.Opened then pcscC.Close;
-
-      pcscC.Destroy;
+      pcscC.Free;
     end;
 
   except
@@ -567,15 +564,11 @@ begin
        bank.Free;
      end;
 
-
     finally
       emv.Free;
 
       AddLog('* PCSC done');
-      if pcscC.Connected then pcscC.Disconnect;
-      if pcscC.Opened then pcscC.Close;
-
-      pcscC.Destroy;
+      pcscC.Free;
     end;
 
   except

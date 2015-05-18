@@ -283,17 +283,22 @@ var
   RStates  : array[0..1] of SCARD_READERSTATEW;
 begin
   try
-  RContext := cardinal(PContext^);
-  FillChar(RStates,SizeOf(RStates),#0);
-  RStates[0].szReader     := SelectedReader;
-  RStates[0].pvUserData   := nil;
-  RStates[0].dwEventState := ActReaderState;
-  while ReaderOpen do
-    begin
-    RStates[0].dwCurrentState := RStates[0].dwEventState;
-    RetVar := SCardGetStatusChangeW(RContext, -1, RStates, 1);
-    ActReaderState := RStates[0].dwEventState;
-    PostMessage(NotifyHandle, WM_CARDSTATE, RetVar, 0);
+    RContext := cardinal(PContext^);
+    FillChar(RStates,SizeOf(RStates),#0);
+    RStates[0].szReader     := SelectedReader;
+    RStates[0].pvUserData   := nil;
+    RStates[0].dwEventState := ActReaderState;
+    while ReaderOpen do
+    try
+      RStates[0].dwCurrentState := RStates[0].dwEventState;
+      RetVar := SCardGetStatusChangeW(RContext, 50, RStates, 1);
+      if RetVar <> SCARD_E_TIMEOUT then
+      begin
+        ActReaderState := RStates[0].dwEventState;
+        PostMessage(NotifyHandle, WM_CARDSTATE, RetVar, 0);
+      end;
+    except
+      break;
     end;
   finally
     Result := 0;
@@ -469,6 +474,7 @@ end;
 procedure TPCSCConnector.Close;
 begin
   ReaderOpen := false;
+  sleep(300);
   SCardCancel(FContext);
   if FConnected then Disconnect;
 end;
@@ -485,11 +491,12 @@ end;
 procedure TPCSCConnector.Disconnect;
 begin
   if FConnected then
-    begin
-    SCardDisconnect(FCardHandle, SCARD_RESET_CARD);
+  begin
     FConnected  := false;
+    Sleep(100);
+    SCardDisconnect(FCardHandle, SCARD_RESET_CARD);
     FCardHandle := 0;
-    end;
+  end;
 end;
 
 function TPCSCConnector.ExternalAuthenticate(data: AnsiString;
