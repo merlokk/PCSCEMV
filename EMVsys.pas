@@ -245,6 +245,7 @@ type
 
     function GetSelectedAID: AnsiString;
     function GetIssuerCmdMAC(bank: TVirtualBank; command: AnsiString; data: AnsiString): AnsiString;
+    function GetCryptogramRAWData: AnsiString;
     function ExecuteIssuerScriptCmd(bank: TVirtualBank; command, data: AnsiString): boolean;
   public
     LoggingTLV,
@@ -1403,6 +1404,49 @@ begin
   end;
 end;
 
+function TEMV.GetCryptogramRAWData: AnsiString;
+begin
+  Result := '';
+
+  if AC1Result.IAD.CryptoVersion = 10 then
+  begin
+    Result := FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$02) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$03) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$1A) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$95) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$5F#$2A) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9A) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9C) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$37) +
+      GPORes.sAIP +
+      AC1Result.sATC +
+      Copy(AC1Result.sIAD, 4, length(AC1Result.sIAD)); // CVR
+  end;
+
+  if AC1Result.IAD.CryptoVersion = 17 then
+  begin
+    Result := FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$02) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$37) +
+      AC1Result.sATC +
+      Copy(AC1Result.IAD.sCVR, 2, 1); // only byte 2
+  end;
+
+  if AC1Result.IAD.CryptoVersion = 18 then // NOT TESTED!!!
+  begin
+    Result := FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$02) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$03) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$1A) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$95) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$5F#$2A) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9A) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9C) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$37) +
+      GPORes.sAIP +
+      AC1Result.sATC +
+      AC1Result.sIAD;
+  end;
+end;
+
 function TEMV.GetPDOL: tlvPDOL;
 begin
   Result := FCIPTSelectedApp.PDOL;
@@ -1754,47 +1798,7 @@ begin
 
   AddLog('* * * Cryptogram verification ARQC');
 
-  RawDataARQC := '';
-
-  if AC1Result.IAD.CryptoVersion = 10 then
-  begin
-    RawDataARQC := FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$02) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$03) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$1A) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$95) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$5F#$2A) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9A) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9C) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$37) +
-      GPORes.sAIP +
-      AC1Result.sATC;
-    if AC1Result.sIAD <> '' then
-      RawDataARQC := RawDataARQC + Copy(AC1Result.sIAD, 4, length(AC1Result.sIAD)); // CVR
-  end;
-
-  if AC1Result.IAD.CryptoVersion = 17 then
-  begin
-    RawDataARQC := FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$02) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$37);
-    RawDataARQC := RawDataARQC + AC1Result.sATC;
-    RawDataARQC := RawDataARQC + Copy(AC1Result.IAD.sCVR, 2, 1); // only byte 2
-  end;
-
-  if AC1Result.IAD.CryptoVersion = 18 then // NOT TESTED!!!
-  begin
-    RawDataARQC := FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$02) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$03) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$1A) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$95) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$5F#$2A) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9A) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9C) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$37) +
-      GPORes.sAIP +
-      AC1Result.sATC;
-    if AC1Result.sIAD <> '' then
-      RawDataARQC := RawDataARQC + AC1Result.sIAD; // IAD
-  end;
+  RawDataARQC := GetCryptogramRAWData;
 
   AddLog('Raw ARQC: ' + Bin2HexExt(RawDataARQC, true, true));
 
@@ -1820,7 +1824,7 @@ begin
     tdAAC:
         AddLog('Transaction declined.');
     tdTC:
-        AddLog('Transaction approved offline.')
+        AddLog('Transaction approved.')
   end;
 
   Result := true;
