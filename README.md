@@ -31,6 +31,7 @@
 7. Get records from AFL
 8. Make fDDA
 9. External authenticate command
+10. Issuer scripts processing
  
 ##Useful links:
 
