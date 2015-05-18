@@ -57,6 +57,8 @@ type
     { Private declarations }
 
     procedure ClearLog;
+
+    procedure IssuerScriptProcessing(emv: TEMV; bank: TVirtualBank);
   public
     { Public declarations }
   end;
@@ -314,50 +316,7 @@ begin
 
 
     // Issuer scripts processing
-    AddLog('');
-    AddLog('* * * Issuer script processing');
-
-    // unblock application
-    if cbSAppUnblock.Checked then
-    begin
-      AddLog('* Unblock application');
-      emv.RunSimpleIssuerScript(#$18, bank);
-    end;
-
-    // unblock PIN
-    if cbSPINUnblock.Checked then
-    begin
-      AddLog('* Unblock PIN');
-      emv.RunSimpleIssuerScript(#$24, bank);
-    end;
-
-    // change PIN
-    if cbSPINChange.Checked then
-    begin
-      AddLog('* Change PIN');
-      emv.RunChangePINIssuerScript('', edPIN.Text, bank);
-    end;
-
-    // update record
-    if cbSUpdateRecord.Checked then
-    begin
-      AddLog('* Update record');
-      emv.RunUpdateRecordIssuerScript(
-        StrToIntDef(edSFI.Text, 0),
-        StrToIntDef(edRECN.Text, 0),
-        Hex2Bin(edRecord.Text),
-        bank);
-    end;
-
-    // put data
-    if cbSPutData.Checked then
-    begin
-      AddLog('* Put data');
-      emv.RunPutDataIssuerScript(
-        Hex2Bin(edTag.Text),
-        Hex2Bin(edValue.Text),
-        bank);
-    end;
+    IssuerScriptProcessing(emv, bank);
 
     bank.Free;
 
@@ -603,13 +562,7 @@ begin
        if not emv.qVSDCIssuerAuthenticate(bank) then exit;
 
        // Issuer Script Commands
-
-       // unblock PIN
-       if cbSPINUnblock.Checked then
-       begin
-         AddLog('* Unblock PIN');
-         emv.RunSimpleIssuerScript(#$24, bank);
-       end;
+       IssuerScriptProcessing(emv, bank);
 
        bank.Free;
      end;
@@ -661,6 +614,55 @@ end;
 procedure TfPOS.FormCreate(Sender: TObject);
 begin
   btRefreshClick(Sender);
+end;
+
+procedure TfPOS.IssuerScriptProcessing(emv: TEMV; bank: TVirtualBank);
+begin
+  // Issuer scripts processing
+  AddLog('');
+  AddLog('* * * Issuer script processing');
+
+  // unblock application
+  if cbSAppUnblock.Checked then
+  begin
+    AddLog('* Unblock application');
+    emv.RunSimpleIssuerScript(#$18, bank);
+  end;
+
+  // unblock PIN
+  if cbSPINUnblock.Checked then
+  begin
+    AddLog('* Unblock PIN');
+    emv.RunSimpleIssuerScript(#$24, bank);
+  end;
+
+  // change PIN
+  if cbSPINChange.Checked then
+  begin
+    AddLog('* Change PIN');
+    emv.RunChangePINIssuerScript('', edPIN.Text, bank);
+  end;
+
+  // update record
+  if cbSUpdateRecord.Checked then
+  begin
+    AddLog('* Update record');
+    emv.RunUpdateRecordIssuerScript(
+      StrToIntDef(edSFI.Text, 0),
+      StrToIntDef(edRECN.Text, 0),
+      Hex2Bin(edRecord.Text),
+      bank);
+  end;
+
+  // put data
+  if cbSPutData.Checked then
+  begin
+    AddLog('* Put data');
+    emv.RunPutDataIssuerScript(
+      Hex2Bin(edTag.Text),
+      Hex2Bin(edValue.Text),
+      bank);
+  end;
 end;
 
 end.
