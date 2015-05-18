@@ -1755,6 +1755,23 @@ begin
   AddLog('* * * Cryptogram verification ARQC');
 
   RawDataARQC := '';
+
+  if AC1Result.IAD.CryptoVersion = 10 then
+  begin
+    RawDataARQC := FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$02) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$03) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$1A) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$95) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$5F#$2A) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9A) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9C) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$37) +
+      GPORes.sAIP +
+      AC1Result.sATC;
+    if AC1Result.sIAD <> '' then
+      RawDataARQC := RawDataARQC + Copy(AC1Result.sIAD, 4, length(AC1Result.sIAD)); // CVR
+  end;
+
   if AC1Result.IAD.CryptoVersion = 17 then
   begin
     RawDataARQC := FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$02) +
@@ -1763,12 +1780,20 @@ begin
     RawDataARQC := RawDataARQC + Copy(AC1Result.IAD.sCVR, 2, 1); // only byte 2
   end;
 
-  if AC1Result.IAD.CryptoVersion = 10 then    // TODO: NOT TESTED!!!!!!
+  if AC1Result.IAD.CryptoVersion = 18 then // NOT TESTED!!!
   begin
-    RawDataARQC := FCIPTSelectedApp.PDOL.SerializeValues + GPORes.sAIP;
-    RawDataARQC := RawDataARQC + AC1Result.sATC;
+    RawDataARQC := FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$02) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$03) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$1A) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$95) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$5F#$2A) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9A) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9C) +
+      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$37) +
+      GPORes.sAIP +
+      AC1Result.sATC;
     if AC1Result.sIAD <> '' then
-      RawDataARQC := RawDataARQC + Copy(AC1Result.sIAD, 4, length(AC1Result.sIAD));
+      RawDataARQC := RawDataARQC + AC1Result.sIAD; // IAD
   end;
 
   AddLog('Raw ARQC: ' + Bin2HexExt(RawDataARQC, true, true));
@@ -1797,6 +1822,8 @@ begin
     tdTC:
         AddLog('Transaction approved offline.')
   end;
+
+  Result := true;
 end;
 
 function TEMV.qVSDCIssuerAuthenticate(bank: TVirtualBank): boolean;
@@ -2228,7 +2255,7 @@ begin
   Result := true;
 
   // 50 Application Label
-  Result := Result and elm.GetPathValue([#$50], ApplicationLabel);
+  Result := Result and elm.GetPathValue([#$50], ApplicationLabel);   // is it mandatory????
 
   // 88 Short File Identifier (SFI)
   elm.GetPathValue([#$88], SFI);

@@ -598,9 +598,18 @@ begin
        if not emv.qVSDCCryptogramCheck(bank) then exit;
 
        // here must be a second tap of a card
+
+       // external authenticate command
        if not emv.qVSDCIssuerAuthenticate(bank) then exit;
 
        // Issuer Script Commands
+
+       // unblock PIN
+       if cbSPINUnblock.Checked then
+       begin
+         AddLog('* Unblock PIN');
+         emv.RunSimpleIssuerScript(#$24, bank);
+       end;
 
        bank.Free;
      end;
