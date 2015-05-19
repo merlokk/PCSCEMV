@@ -554,6 +554,8 @@ begin
        if not emv.qVSDCCryptogramCheck(bank) then exit;
 
        // here must be a second tap of a card
+       AddLog('');
+       AddLog('* * * Second card tap');
 
        // external authenticate command
        if not emv.qVSDCIssuerAuthenticate(bank) then exit;

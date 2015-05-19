@@ -138,6 +138,7 @@ var
   OddCount   : Byte;
 begin
   Result := '';
+  if length(data) = 0 then exit;
 
   if Length(Key) <> SizeOf(DKey) then exit;
 

@@ -474,7 +474,7 @@ end;
 procedure TPCSCConnector.Close;
 begin
   ReaderOpen := false;
-  sleep(300);
+  sleep(100);
   SCardCancel(FContext);
   if FConnected then Disconnect;
 end;

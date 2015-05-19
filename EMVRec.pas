@@ -2,7 +2,7 @@ unit EMVRec;
 
 interface
 uses
-  System.SysUtils, System.Variants, System.Classes, System.AnsiStrings, Generics.Collections,
+  System.SysUtils, System.Variants, System.Classes, System.AnsiStrings, Generics.Collections, Math,
   TLVsys, EMVconst, defs, PCSCConnector, Ciphers;
 
 type
@@ -93,7 +93,8 @@ type
 
     CryptoVersion,
     DerivKeyIndex: byte;
-    sCVR: AnsiString;
+    sCVR,
+    IDD: AnsiString;
 
     CVR: rCVR;
 
@@ -395,9 +396,14 @@ begin
   Result := 'Derivation key index:0x' + IntToHex(DerivKeyIndex, 2) + #$0D#$0A;
   Result := Result + 'Cryptogram version:0x' + IntToHex(CryptoVersion, 2) + #$0D#$0A;
   Result := Result + 'CVR: ' + #$0D#$0A + CVR.DecodeStr;
+  if IDD <> '' then
+    Result := Result+ 'Issuer discretionary data (IDD): ' + Bin2HexExt(IDD);
 end;
 
 function rIAD.Deserialize(s: AnsiString): boolean;
+var
+  lenVDD,        //  Visa discretionary data
+  lenIDD: byte;  //  Issuer discretionary data
 begin
   Result := false;
   Valid := false;
@@ -406,15 +412,22 @@ begin
   DerivKeyIndex := 0;
   sCVR := '';
   CVR.Clear;
+  IDD := '';
 
   Raw := s;
-  if (length(s) < 4) or
-     (byte(s[1]) <> length(s) - 1) then exit;
+  if length(s) < 4 then exit;
 
+  lenVDD := byte(s[1]);
+  lenIDD := 0;
+  if lenVDD < length(s) - 1 then
+    lenIDD := byte(s[1 + lenVDD + 1]);
+
+  if lenVDD + lenIDD <> length(s) - 1 - 1 * System.Math.Sign(lenIDD) then exit;
 
   DerivKeyIndex := byte(s[2]);
   CryptoVersion := byte(s[3]);
-  sCVR := Copy(s, 4, length(s));
+  sCVR := Copy(s, 4, lenVDD - 2);
+  IDD := Copy(s, lenVDD + 3, lenIDD);
 
   if (length(sCVR) < 1) or
      (byte(sCVR[1]) <> length(sCVR) - 1) then exit;

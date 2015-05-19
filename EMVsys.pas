@@ -245,7 +245,7 @@ type
 
     function GetSelectedAID: AnsiString;
     function GetIssuerCmdMAC(bank: TVirtualBank; command: AnsiString; data: AnsiString): AnsiString;
-    function GetCryptogramRAWData: AnsiString;
+    function GetCryptogramRAWData(DOL: tlvPDOL; AC: tlvRespTmplAC): AnsiString;
     function ExecuteIssuerScriptCmd(bank: TVirtualBank; command, data: AnsiString): boolean;
   public
     LoggingTLV,
@@ -1222,8 +1222,7 @@ begin
 
   AddLog('* * * Cryptogram verification ARQC');
 
-  RawDataARQC := CDOL1.SerializeValues + GPORes.sAIP + resAC.sATC;
-  if resAC.sIAD <> '' then RawDataARQC := RawDataARQC + Copy(resAC.sIAD, 4, length(resAC.sIAD));
+  RawDataARQC := GetCryptogramRAWData(CDOL1, resAC);
   AddLog('Raw ARQC: ' + Bin2HexExt(RawDataARQC, true, true));
 
   res := bank.CalculateARQC(
@@ -1404,46 +1403,46 @@ begin
   end;
 end;
 
-function TEMV.GetCryptogramRAWData: AnsiString;
+function TEMV.GetCryptogramRAWData(DOL: tlvPDOL; AC: tlvRespTmplAC): AnsiString;
 begin
   Result := '';
 
   if AC1Result.IAD.CryptoVersion = 10 then
   begin
-    Result := FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$02) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$03) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$1A) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$95) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$5F#$2A) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9A) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9C) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$37) +
+    Result := DOL.GetTagValue(#$9F#$02) +
+      DOL.GetTagValue(#$9F#$03) +
+      DOL.GetTagValue(#$9F#$1A) +
+      DOL.GetTagValue(#$95) +
+      DOL.GetTagValue(#$5F#$2A) +
+      DOL.GetTagValue(#$9A) +
+      DOL.GetTagValue(#$9C) +
+      DOL.GetTagValue(#$9F#$37) +
       GPORes.sAIP +
-      AC1Result.sATC +
-      Copy(AC1Result.sIAD, 4, length(AC1Result.sIAD)); // CVR
+      AC.sATC +
+      Copy(AC.sIAD, 4, length(AC.sIAD)); // CVR
   end;
 
   if AC1Result.IAD.CryptoVersion = 17 then
   begin
-    Result := FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$02) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$37) +
-      AC1Result.sATC +
-      Copy(AC1Result.IAD.sCVR, 2, 1); // only byte 2
+    Result := DOL.GetTagValue(#$9F#$02) +
+      DOL.GetTagValue(#$9F#$37) +
+      AC.sATC +
+      Copy(AC.IAD.sCVR, 2, 1); // only byte 2
   end;
 
   if AC1Result.IAD.CryptoVersion = 18 then // NOT TESTED!!!
   begin
-    Result := FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$02) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$03) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$1A) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$95) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$5F#$2A) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9A) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9C) +
-      FCIPTSelectedApp.PDOL.GetTagValue(#$9F#$37) +
+    Result := DOL.GetTagValue(#$9F#$02) +
+      DOL.GetTagValue(#$9F#$03) +
+      DOL.GetTagValue(#$9F#$1A) +
+      DOL.GetTagValue(#$95) +
+      DOL.GetTagValue(#$5F#$2A) +
+      DOL.GetTagValue(#$9A) +
+      DOL.GetTagValue(#$9C) +
+      DOL.GetTagValue(#$9F#$37) +
       GPORes.sAIP +
-      AC1Result.sATC +
-      AC1Result.sIAD;
+      AC.sATC +
+      AC.sIAD;
   end;
 end;
 
@@ -1798,7 +1797,7 @@ begin
 
   AddLog('* * * Cryptogram verification ARQC');
 
-  RawDataARQC := GetCryptogramRAWData;
+  RawDataARQC := GetCryptogramRAWData(FCIPTSelectedApp.PDOL, AC1Result);
 
   AddLog('Raw ARQC: ' + Bin2HexExt(RawDataARQC, true, true));
 
