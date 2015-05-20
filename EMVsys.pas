@@ -1279,7 +1279,7 @@ begin
     end;
     if sw = $6A81 then
     begin
-      AddLog('App blocked. Next.');
+      AddLog('App ' + ConstAIDList[i] + ' blocked. Next.');
       continue;
     end;
 
@@ -1442,7 +1442,11 @@ begin
       DOL.GetTagValue(#$9F#$37) +
       GPORes.sAIP +
       AC.sATC +
-      AC.sIAD;
+//      Copy(AC.sIAD, 1, 7) +
+      AC.sIAD +
+      #$80; // PADDING!!!
+  while length(Result) mod 8 <> 0 do
+    Result := Result + #$00;
   end;
 end;
 

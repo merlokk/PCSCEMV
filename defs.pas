@@ -17,6 +17,8 @@ function EMVDateDecode(s: AnsiString): TDateTime;
 function EMVIntegerDecode(s: AnsiString): int64;
 function EMVIntegerHexDecode(s: AnsiString): int64;
 
+function NormalizePAN(pan: AnsiString): AnsiString;
+
 function Hex2Bin(input: string): AnsiString;
 function Bin2HexExt(const input:AnsiString; const spaces: boolean = true; const upcase: boolean = true): string;
 function Bin2Hex(const input:AnsiString): string;
@@ -99,6 +101,18 @@ begin
   Result := StrToIntDef(Bin2HexExt(s, false, true), 0);
 end;
 
+function NormalizePAN(pan: AnsiString): AnsiString;
+var
+  s: string;
+begin
+  s := Bin2Hex(pan);
+
+  while (length(s) > 0) and (s[length(s)] = 'F') do
+    s := Copy(s, 1, length(s) - 1);
+
+  Result := Hex2Bin(s);
+end;
+
 function Hex2Bin(input: string): AnsiString;
 var
   hex,
@@ -107,6 +121,9 @@ var
 begin
   for loop := 1 to Length(input) do
     if Pos(input[loop], hexchars) > 0 then hex := hex + AnsiUpperCase(AnsiChar(input[loop]));
+
+  if length(hex) mod 2 <> 0 then
+    hex := '0' + hex;
 
   loop := 1;
   if Length(hex) > 0 then

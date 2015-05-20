@@ -155,7 +155,7 @@ var
 begin
   Result := '';
 
-  UDKA := PAN + PANSeq;
+  UDKA := NormalizePAN(PAN) + PANSeq;
 
   if length(UDKA) > 8 then
     UDKA := Copy(UDKA, 1 + (length(UDKA) - 8), length(UDKA));
