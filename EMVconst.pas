@@ -164,6 +164,7 @@ begin
   EMVTags := TList<TEMVTag>.Create;
 
   // All Data Elements by Tags used in TLV structure (according to the EMV 4.2 Standard )
+  // additional info VIS A.2 Data Element Tags, Page A-149
   // Thanks to http://dexterous-programmer.blogspot.in/2012/05/emv-tags.html )))
   EMVTags.Add(EMVTag(#$42,	'Issuer Identification Number (IIN)'));
   EMVTags.Add(EMVTag(#$4F,	'Application Identifier (AID) - card'));

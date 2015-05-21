@@ -1273,6 +1273,7 @@ var
   appt: tlvAppTemplate;
   logDir,
   isDirectory: boolean;
+  sr: string;
 begin
   isDirectory := false;
   i := -1;
@@ -1285,14 +1286,10 @@ begin
     logDir := isDirectory;
     isDirectory := false;
 
-    if sw = $6283 then
-    begin
-      AddLog('Card blocked. Exit.');
-      exit;
-    end;
     if sw = $6A81 then
     begin
       AddLog(ConstAIDList[i] + ' blocked. Next.');
+      isDirectory := logDir;
       continue;
     end;
     if sw = $6A82 then
@@ -1304,17 +1301,21 @@ begin
       continue;
     end;
 
-    if sw <> $9000 then
+    if (sw <> $9000) and (sw <> $6283) then
     begin
       AddLog(ConstAIDList[i] + ' SELECT error: ' + IntToHex(sw, 4));
     end
     else
     begin
       //9000 - ok, add to list
+      //6283 - application blocked. process it, but not add to the list
+
+      sr := '';
+      if sw = $6283 then sr := 'BLOCKED.';
       if logDir then
-        AddLog(ConstAIDList[i] + ' directory record found')
+        AddLog(ConstAIDList[i] + ' directory record found. ' + sr)
       else
-        AddLog(ConstAIDList[i] + ' found');
+        AddLog(ConstAIDList[i] + ' found. ' + sr);
 
       AddLog('****' + Bin2HexExt(res, true, true));
 
@@ -1342,7 +1343,8 @@ begin
               isDirectory := true;
             end;
 
-            AIDList.Add(appt); // add to result here
+            // add the result to list here only if the response code = 0x9000
+            if sw = $9000 then AIDList.Add(appt);
           end
       end
       else
