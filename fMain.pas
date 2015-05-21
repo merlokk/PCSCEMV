@@ -203,8 +203,13 @@ begin
 
       AddLog('');
       AddLog('* * * Trying  PSE');
-      emv.GetAIDsByPSE('1PAY.SYS.DDF01');
-      emv.GetAIDsByPSE('2PAY.SYS.DDF01');
+      if not emv.GetAIDsByPSE('1PAY.SYS.DDF01') or
+         not emv.GetAIDsByPSE('2PAY.SYS.DDF01')
+      then
+      begin
+        AddLog('PSE block. exit.');
+        exit;
+      end;
 
       if cbPSEForce.Checked then
       begin

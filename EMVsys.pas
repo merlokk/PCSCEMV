@@ -279,7 +279,7 @@ type
 
     property SelectedAID: AnsiString read GetSelectedAID;
 
-    procedure GetAIDsByPSE(PseAID: AnsiString);
+    function GetAIDsByPSE(PseAID: AnsiString): boolean;
     procedure GetAIDsByConstAIDList;
 
     procedure SelectApp(aid: AnsiString);
@@ -1355,7 +1355,7 @@ begin
   end;
 end;
 
-procedure TEMV.GetAIDsByPSE(PseAID: AnsiString);
+function TEMV.GetAIDsByPSE(PseAID: AnsiString): boolean;
 var
   res: AnsiString;
   sw: word;
@@ -1367,80 +1367,103 @@ var
   t: integer;
   sfi: byte;
 begin
+  Result := false;
+
+  // EMV 4.3 Book 1 §12.3.2, page 141
   res := FpcscC.CardSelect(PseAID, true, sw);
+  if sw = $6A81 then
+  begin
+    AddLog('Card blocked or SELECT command not supported. Exit.');
+    exit;
+  end;
+  if sw = $6A82 then
+  begin
+    AddLog('PSE ' + string(PseAID) + ' not found.');
+    Result := true;
+    exit;
+  end;
+  if sw = $6283 then
+  begin
+    AddLog('PSE ' + string(PseAID) + ' blocked. Process AID list.');
+    Result := true;
+    exit;
+  end;
+
   if sw <> $9000 then
   begin
-    AddLog(string(PseAID) + ' not found');
-  end
-  else
+    AddLog('PSE ' + string(PseAID) + ' error: ' + IntToHex(sw, 4));
+    Result := true;
+    exit;
+  end;
+
+  AddLog('****' + Bin2HexExt(res, true, true));
+  tlv := TTLV.Create;
+  if tlv.Deserealize(res) and (tlv.Tag = #$6F) then
   begin
-    AddLog('****' + Bin2HexExt(res, true, true));
-    tlv := TTLV.Create;
-    if tlv.Deserealize(res) and (tlv.Tag = #$6F) then
+    AddLog(string(PseAID) + ' catalog parsing result:');
+    if LoggingTLV then AddLog(tlv.GetStrTree);
+
+    // Reading via Short File Identifier (SFI)
+    elm := tlv.FindPath([#$A5, #$88]);
+    if elm <> nil then
     begin
-      AddLog(string(PseAID) + ' catalog parsing result:');
-      if LoggingTLV then AddLog(tlv.GetStrTree);
-
-      // Reading via Short File Identifier (SFI)
-      elm := tlv.FindPath([#$A5, #$88]);
-      if elm <> nil then
+      // get SFI
+      t := -1;
+      if length(elm.Value) > 0 then
+        t := byte(elm.Value[1]);
+      if (t > 0) and (t <= $1F) then
       begin
-        // get SFI
-        t := -1;
-        if length(elm.Value) > 0 then
-          t := byte(elm.Value[1]);
-        if (t > 0) and (t <= $1F) then
+        sfi := byte(t);
+        // read records via SFI
+        for i := $01 to $10 do
         begin
-          sfi := byte(t);
-          // read records via SFI
-          for i := $01 to $10 do
+          res := FpcscC.ReadSFIRecord(sfi, i, sw);
+
+          // end of records
+          if sw = $6A83 then break;
+
+          // deserealize records
+          if sw = $9000 then
           begin
-            res := FpcscC.ReadSFIRecord(sfi, i, sw);
+            AddLog('SFI: 0x' + IntToHex(sfi, 2) + ' rec num:' + IntToStr(i));
+            AddLog('****' + Bin2HexExt(res, true, true));
 
-            // end of records
-            if sw = $6A83 then break;
+            tlv.Clear;
+            tlv.Deserealize(res);
+            if LoggingTLV then AddLog(tlv.GetStrTree);
 
-            // deserealize records
-            if sw = $9000 then
+            elm := tlv.FindPath([#$61]);
+            if (elm <> nil) and (elm.vTag = teAppTemplate) then
             begin
-              AddLog('SFI: 0x' + IntToHex(sfi, 2) + ' rec num:' + IntToStr(i));
-              AddLog('****' + Bin2HexExt(res, true, true));
-
-              tlv.Clear;
-              tlv.Deserealize(res);
-              if LoggingTLV then AddLog(tlv.GetStrTree);
-
-              elm := tlv.FindPath([#$61]);
-              if (elm <> nil) and (elm.vTag = teAppTemplate) then
-              begin
-                at.Deserialize(elm);
-                if at.Valid then
-                  AIDList.Add(at)
-                else
-                  AddLog('Application Template: parsing error.');
-              end
+              at.Deserialize(elm);
+              if at.Valid then
+                AIDList.Add(at)
               else
-                AddLog('TLV parsing error.');
-            end;
+                AddLog('Application Template: parsing error.');
+            end
+            else
+              AddLog('TLV parsing error.');
           end;
         end;
-
       end;
 
-      // direct reading
-      elm := tlv.FindPath([#$A5, #$BF#$0C]);
-      if (elm <> nil) and (elm.vTag = teFCIIDD) then
-        if fci.Deserialize(elm) then
-          AIDList.Add(fci.AppTemplate) // add to result here
-        else
-          AddLog('(FCI) Issuer Discretionary Data: parsing error.');
+    end;
 
-    end
-    else
-      AddLog(Bin2HexExt(PseAID, false, true) + ': TLV parsing error.');
+    // direct reading
+    elm := tlv.FindPath([#$A5, #$BF#$0C]);
+    if (elm <> nil) and (elm.vTag = teFCIIDD) then
+      if fci.Deserialize(elm) then
+        AIDList.Add(fci.AppTemplate) // add to result here
+      else
+        AddLog('(FCI) Issuer Discretionary Data: parsing error.');
 
-    tlv.Free;
-  end;
+  end
+  else
+    AddLog(Bin2HexExt(PseAID, false, true) + ': TLV parsing error.');
+
+  tlv.Free;
+
+  Result := true;
 end;
 
 function TEMV.GetCryptogramRAWData(DOL: tlvPDOL; AC: tlvRespTmplAC): AnsiString;
