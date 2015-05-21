@@ -111,7 +111,9 @@ type
     SFI,
     ApplicationLabel,
     ApplicationPriority,
-    LanguagePreference: AnsiString;
+    LanguagePreference,
+    IssuerCodeTableIndex,
+    ApplicationPreferredName: AnsiString;
 
     PDOL: tlvPDOL;
     FCIDDD: tlvFCIDDD;
@@ -1262,16 +1264,27 @@ end;
 procedure TEMV.GetAIDsByConstAIDList;
 var
   i: integer;
+  DedicatedFileName,
   res: AnsiString;
   sw: word;
   tlv,
   elm: TTLV;
   fci: tlvFCIPT;
   appt: tlvAppTemplate;
+  logDir,
+  isDirectory: boolean;
 begin
-  for i := 0 to length(ConstAIDList) - 1 do
+  isDirectory := false;
+  i := -1;
+  while i < length(ConstAIDList) - 1 do
   begin
-    res := FpcscC.CardSelect(Hex2Bin(ConstAIDList[i]), sw);
+    if not isDirectory then i := i + 1;
+
+    res := FpcscC.CardSelect(Hex2Bin(ConstAIDList[i]), not isDirectory, sw);
+
+    logDir := isDirectory;
+    isDirectory := false;
+
     if sw = $6283 then
     begin
       AddLog('Card blocked. Exit.');
@@ -1279,30 +1292,55 @@ begin
     end;
     if sw = $6A81 then
     begin
-      AddLog('App ' + ConstAIDList[i] + ' blocked. Next.');
+      AddLog(ConstAIDList[i] + ' blocked. Next.');
+      continue;
+    end;
+    if sw = $6A82 then
+    begin
+      if not logDir then
+        AddLog(ConstAIDList[i] + ' not found. Next.')
+      else
+        AddLog(ConstAIDList[i] + ' end of directory list. Next.');
       continue;
     end;
 
     if sw <> $9000 then
     begin
-      AddLog(ConstAIDList[i] + ' not found');
+      AddLog(ConstAIDList[i] + ' SELECT error: ' + IntToHex(sw, 4));
     end
     else
     begin
       //9000 - ok, add to list
-      AddLog(ConstAIDList[i] + ' found');
+      if logDir then
+        AddLog(ConstAIDList[i] + ' directory record found')
+      else
+        AddLog(ConstAIDList[i] + ' found');
+
       AddLog('****' + Bin2HexExt(res, true, true));
 
       tlv := TTLV.Create;
       if tlv.Deserealize(res) and (tlv.Tag = #$6F) then
       begin
         if LoggingTLV then AddLog(tlv.GetStrTree);
+
+        // 84 Dedicated File (DF) Name
+        tlv.GetPathValue([#$84], DedicatedFileName);
+
         elm := tlv.FindPath([#$A5]);
         if (elm <> nil) and (elm.vTag = teFCIPT) then
           if fci.Deserialize(elm) then
           begin
-            appt.Assign(@fci);
             appt.AID := Hex2Bin(ConstAIDList[i]);
+            appt.Assign(@fci);
+
+            // directory selection. EMV 4.3 Book 1 §12.3.3 page 144
+            if (DedicatedFileName <> '') and
+               (length(appt.AID) < length(DedicatedFileName))
+            then
+            begin
+              appt.AID := DedicatedFileName;
+              isDirectory := true;
+            end;
 
             AIDList.Add(appt); // add to result here
           end
@@ -1311,7 +1349,7 @@ begin
         AddLog(ConstAIDList[i] + ': TLV parsing error.');
 
       tlv.Free;
-    end;
+    end; // of cycle i
   end;
 end;
 
@@ -1327,7 +1365,7 @@ var
   t: integer;
   sfi: byte;
 begin
-  res := FpcscC.CardSelect(PseAID, sw);
+  res := FpcscC.CardSelect(PseAID, true, sw);
   if sw <> $9000 then
   begin
     AddLog(string(PseAID) + ' not found');
@@ -2141,7 +2179,7 @@ var
   elm: TTLV;
 begin
   FSelectedAID := '';
-  res := FpcscC.CardSelect(aid, sw);
+  res := FpcscC.CardSelect(aid, true, sw);
 
   AddLog('* * * Select Definition File ' + Bin2HexExt(aid, true, true));
   AddLog('****' + Bin2HexExt(res, true, true));
@@ -2199,6 +2237,7 @@ begin
 
   ApplicationLabel := fcipt^.ApplicationLabel;
   ApplicationPriority := fcipt^.ApplicationPriority;
+
   Valid := fcipt^.Valid;
 end;
 
@@ -2259,13 +2298,14 @@ function tlvFCIPT.Deserialize(elm: TTLV): boolean;
 var
   telm: TTLV;
 begin
-  Result := true;
-
   // 50 Application Label
-  Result := Result and elm.GetPathValue([#$50], ApplicationLabel);   // is it mandatory????
+  elm.GetPathValue([#$50], ApplicationLabel);
 
   // 88 Short File Identifier (SFI)
   elm.GetPathValue([#$88], SFI);
+
+  // EMV 4.3 book1 §11.3.3 fields 0x50 or 0x88 are mandatory!
+  Result := (SFI <> '') or (ApplicationLabel <> '');
 
   // 87 Application Priority Indicator
   elm.GetPathValue([#$87], ApplicationPriority);
@@ -2273,11 +2313,19 @@ begin
   // 5F2D Language Preference
   elm.GetPathValue([#$5F#$2D], LanguagePreference);
 
+  // 2 tags for multilanguage:
+  // 9F11 Issuer Code Table Index
+  elm.GetPathValue([#$9F#$11], IssuerCodeTableIndex);
+  // 9F12 Application Preferred Name
+  elm.GetPathValue([#$9F#$12], ApplicationPreferredName);
+
+  // BF0C FCI Issuer Discretionary Data
   FCIDDD.Valid := false;
   telm := elm.FindPath([#$BF#$0C]);
   if telm <> nil then
     FCIDDD.Deserialize(telm);
 
+  // 9F38 PDOL
   PDOL.Valid := false;
   telm := elm.FindPath([#$9F#$38]);
   if telm <> nil then

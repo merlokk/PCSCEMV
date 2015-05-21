@@ -220,6 +220,7 @@ begin
         emv.GetAIDsByConstAIDList;
       end;
 
+     AddLog('');
      AddLog('* * * List Definition Files:');
      for i := 0 to emv.AIDList.Count - 1 do
        AddLog('- ' + emv.AIDList[i].ToString);
@@ -464,6 +465,7 @@ begin
         emv.GetAIDsByConstAIDList;
       end;
 
+     AddLog('');
      AddLog('* * * List Definition Files:');
      for i := 0 to emv.AIDList.Count - 1 do
        AddLog('- ' + emv.AIDList[i].ToString);

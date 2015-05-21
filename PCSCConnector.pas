@@ -162,7 +162,7 @@ type
     function    NXPRead(addr: cardinal; len: byte; var sw: Word): AnsiString;
     function    NXPWrite(addr: cardinal; len: byte; data: AnsiString; var sw: Word): AnsiString;
 
-    function    CardSelect(const aid: AnsiString; var sw: Word): AnsiString;
+    function    CardSelect(const aid: AnsiString; findfirst: boolean; var sw: Word): AnsiString;
     function    ReadSFIRecord(sfi, rnum: byte; var sw: Word): AnsiString;
     function    GetData(id: AnsiString; var sw: Word): AnsiString;
     function    InternalAuthenticate(data: AnsiString; var sw: Word): AnsiString;
@@ -633,12 +633,20 @@ begin
   Disconnect;
 end;
 
-function TPCSCConnector.CardSelect(const aid: AnsiString; var sw: Word): AnsiString;
+// EMV 4.3 book 1 §11.3 page 127
+function TPCSCConnector.CardSelect(const aid: AnsiString; findfirst: boolean; var sw: Word): AnsiString;
+var
+  p2: AnsiChar;
 begin
   Result := '';
   if length(aid) > 250 then exit;
+  p2 := #$00;
   Result := AnsiChar(byte(length(aid))) + aid;
-  if GetResponseFromCard(#$00#$A4#$04#$00, Result, sw) <> true then
+  // p1=0x04 - select by name
+  // p2=0x00 - select First or only occurrence
+  // p2=0x02 - select Next occurrence
+  if not findfirst then p2 := #$02;
+  if GetResponseFromCard(#$00#$A4#$04 + p2, Result, sw) <> true then
     Result := '';
 end;
 
