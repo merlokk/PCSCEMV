@@ -779,10 +779,11 @@ procedure TPCSCConnector.GetCardAttributes;
 begin
 end;
 
+// EMV book 3, section 6.5.6 GET CHALLENGE Command-Response APDUs
 function TPCSCConnector.GetChallenge(var sw: Word): AnsiString;
 begin
   Result := '';
-  if not GetResponseFromCard(#$00#$84#$00#$00, Result, sw)
+  if not GetResponseFromCard(#$00#$84#$00#$00#$00, Result, sw)
   then
     Result := '';
 
