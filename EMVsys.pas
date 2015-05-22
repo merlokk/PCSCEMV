@@ -1484,7 +1484,7 @@ begin
       DOL.GetTagValue(#$9F#$37) +
       GPORes.sAIP +
       AC.sATC +
-      Copy(AC.sIAD, 4, length(AC.sIAD)); // CVR
+      AC.IAD.sCVR;
   end;
 
   if AC1Result.IAD.CryptoVersion = 17 then
