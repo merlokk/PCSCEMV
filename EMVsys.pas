@@ -2248,7 +2248,7 @@ begin
   AIDList.Sort(TComparer<tlvAppTemplate>.Construct(
     function (const L, R: tlvAppTemplate): integer
     begin
-      Result := L.GetApplicationPriority - R.GetApplicationPriority;
+      Result := (L.GetApplicationPriority and $0F) - (R.GetApplicationPriority and $0F);
     end
   ));
 
