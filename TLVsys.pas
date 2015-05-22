@@ -104,7 +104,6 @@ begin
   strlen := s[indx];
   if not StrSafeInc(s, indx) then exit;
   k := byte(strlen[1]);
-  if k = 0 then exit; // length==0 ---- wrong!!!!
 
   if k and $80 <> 0 then
   begin  // multibyte length

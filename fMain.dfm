@@ -204,8 +204,6 @@ object fPOS: TfPOS
       Width = 222
       Height = 17
       Caption = 'Force select via AID list (wo PSE)'
-      Checked = True
-      State = cbChecked
       TabOrder = 5
     end
     object cbSPINUnblock: TCheckBox
