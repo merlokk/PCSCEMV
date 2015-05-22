@@ -3,7 +3,7 @@ unit EMVsys;
 interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, System.AnsiStrings,
-  Generics.Collections,
+  Generics.Collections, Generics.Defaults,
   TLVsys, EMVCertificates, EMVconst, defs, PCSCConnector, Ciphers, EMVrec, VISAVirtualBank;
 
 type
@@ -2241,22 +2241,26 @@ end;
 
 procedure TEMV.SelectAppByList;
 var
-  aid: AnsiString;
-  prio: integer;
   i: Integer;
 begin
   if AIDList.Count = 0 then exit;
-  aid := AIDList[0].AID;
-  prio := AIDList[0].GetApplicationPriority;
 
-  for i := 1 to AIDList.Count - 1 do
-    if prio > AIDList[0].GetApplicationPriority then
+  AIDList.Sort(TComparer<tlvAppTemplate>.Construct(
+    function (const L, R: tlvAppTemplate): integer
     begin
-      aid := AIDList[i].AID;
-      prio := AIDList[i].GetApplicationPriority;
-    end;
+      Result := L.GetApplicationPriority - R.GetApplicationPriority;
+    end
+  ));
 
-  if aid <> '' then SelectApp(aid);
+  for i := 0 to AIDList.Count - 1 do
+    if AIDList[i].Valid then
+      if SelectApp(AIDList[i].AID) then
+        break
+      else
+      begin
+        AddLog('Selected application not valid. Next.');
+        AddLog('');
+      end;
 end;
 
 function TEMV.SetGPO_PDOL(tag, val: AnsiString): boolean;
