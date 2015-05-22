@@ -6,25 +6,6 @@ uses
   Generics.Collections,
   TLVsys, EMVCertificates, EMVconst, defs, PCSCConnector, Ciphers, EMVrec, VISAVirtualBank;
 
-const
-  ConstAIDList: array of string = [
-    // VISA
-    'A0000000031010',
-    'A0000000032010',
-    'A0000000032020',
-    'A0000000033010',
-    'A0000000034010',
-    'A0000000035010',
-    'A0000000038010',
-    'A0000000038002',
-    'A0000000039010',
-
-    // MasterCard
-    'A0000000041010',
-    'A0000000042010',
-    'A0000000043010',
-    'A0000000044010'];
-
 type
   TagsEnum = (teUnknown,
     teFCIPT,              // A5   File Control Information (FCI) Proprietary Template
@@ -281,6 +262,7 @@ type
 
     function GetAIDsByPSE(PseAID: AnsiString): boolean;
     procedure GetAIDsByConstAIDList;
+    procedure CheckAIDListSupportedByTerminal;
 
     procedure SelectApp(aid: AnsiString);
     procedure SelectAppByList;
@@ -679,6 +661,18 @@ begin
   Result := true;
   Result := Result and CDOL1.SetTagValue(Tag, Value);
   Result := Result and CDOL2.SetTagValue(Tag, Value);
+end;
+
+procedure TEMV.CheckAIDListSupportedByTerminal;
+var
+  i: Integer;
+begin
+  for i := AIDList.Count - 1 downto 0 do
+   if not CheckAIDPresentInConstAIDList(AIDList[i].AID, true) then
+   begin
+      AddLog('AID: ' + Bin2HexExt(AIDList[i].AID) + ' deleted.');
+      AIDList.Delete(i);
+   end;
 end;
 
 function TEMV.CheckPINTryCount: boolean;
@@ -1418,6 +1412,14 @@ begin
         for i := $01 to $10 do
         begin
           res := FpcscC.ReadSFIRecord(sfi, i, sw);
+
+          // EMV 4.3 Book 1 12.3.2, page 141
+          if (sw <> $9000) and (sw <> $6A83) then
+          begin
+            AddLog('SFI reading error: ' + IntToHex(sw, 4) + '. AID list cleared.');
+            AIDList.Clear;
+            exit;
+          end;
 
           // end of records
           if sw = $6A83 then break;
@@ -2205,6 +2207,15 @@ var
 begin
   FSelectedAID := '';
   res := FpcscC.CardSelect(aid, true, sw);
+
+  if (sw <> $9000) and (sw <> $6283) then
+  begin
+    AddLog('SELECT application error: ' + IntToHex(sw, 4));
+    exit;
+  end;
+
+  if sw = $6283 then
+    AddLog('WARNING! Selected application BLOCKED!');
 
   AddLog('* * * Select Definition File ' + Bin2HexExt(aid, true, true));
   AddLog('****' + Bin2HexExt(res, true, true));

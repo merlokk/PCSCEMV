@@ -47,6 +47,7 @@ type
     cbVSDC: TCheckBox;
     cbMSD: TCheckBox;
     Label5: TLabel;
+    cbCheckAIDinPSE: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure btRunContactClick(Sender: TObject);
     procedure btRunContactlessClick(Sender: TObject);
@@ -211,9 +212,18 @@ begin
         exit;
       end;
 
+      // EMV 4.3 Book 1 §12.3.2, page 142
+      if cbCheckAIDinPSE.Checked then
+      begin
+        AddLog('');
+        AddLog('* Filter AID according to supported terminal AIDs.');
+        emv.CheckAIDListSupportedByTerminal;
+      end;
+
       if cbPSEForce.Checked then
       begin
         emv.AIDList.Clear;
+        AddLog('');
         AddLog('PSE cleared.');
       end;
 
@@ -264,7 +274,7 @@ begin
      // procedding restrictions
      emv.ProcessingRestrictions;
 
-     // EMV 4.3 book3 10.3 page 111. Auth priority CDA --> DDA --> SDA
+     // EMV 4.3 book3 §10.3 page 111. Auth priority CDA --> DDA --> SDA
      //* Updated Input to Authentication as valid 9F4A is present
      if emv.GPORes.AIP.SDAsupported then
      begin

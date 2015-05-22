@@ -5,6 +5,27 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, System.AnsiStrings,
   Generics.Collections, EMVkeys, Ciphers, defs;
 
+const
+  ConstAIDList: array of string = [
+    // VISA
+    'A0000000031010',
+    'A0000000032010',
+    'A0000000032020',
+    'A0000000033010',
+    'A0000000034010',
+    'A0000000035010',
+    'A0000000038010',
+    'A0000000038002',
+    'A0000000039010',
+
+    // MasterCard
+    'A0000000041010',
+    'A0000000042010',
+    'A0000000043010',
+    'A0000000044010'];
+
+function CheckAIDPresentInConstAIDList(AID: AnsiString; partial: boolean): boolean;
+
 type
   TEMVTag = packed record
     Tag: AnsiString;
@@ -97,6 +118,29 @@ const
 
 
 implementation
+
+function CheckAIDPresentInConstAIDList(AID: AnsiString; partial: boolean): boolean;
+var
+  i: Integer;
+  sAID: string;
+begin
+  Result := false;
+
+  sAID := Bin2Hex(AID);
+  for i := 0 to length(ConstAIDList) - 1 do
+  begin
+    if  ConstAIDList[i] = sAID then
+    begin
+      Result := true;
+      break;
+    end;
+    if partial and (ConstAIDList[i] = Copy(sAID, 1, length(ConstAIDList[i]))) then
+    begin
+      Result := true;
+      break;
+    end;
+  end;
+end;
 
 function GetPublicKey(RID: AnsiString; Index: byte): TRSAPublicKey;
 var
