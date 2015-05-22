@@ -264,7 +264,7 @@ type
     procedure GetAIDsByConstAIDList;
     procedure CheckAIDListSupportedByTerminal;
 
-    procedure SelectApp(aid: AnsiString);
+    function SelectApp(aid: AnsiString): boolean;
     procedure SelectAppByList;
 
     function SetGPO_PDOL(tag, val: AnsiString): boolean;
@@ -2199,12 +2199,13 @@ begin
   TVR.SDAFailed := false;
 end;
 
-procedure TEMV.SelectApp(aid: AnsiString);
+function TEMV.SelectApp(aid: AnsiString): boolean;
 var
   res: AnsiString;
   sw: word;
   elm: TTLV;
 begin
+  Result := false;
   FSelectedAID := '';
   res := FpcscC.CardSelect(aid, true, sw);
 
@@ -2234,6 +2235,8 @@ begin
     FSelectedAID := aid;
 
   TVR.Clear;
+
+  Result := FCIPTSelectedApp.Valid and (sw = $9000);
 end;
 
 procedure TEMV.SelectAppByList;
