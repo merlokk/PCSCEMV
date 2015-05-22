@@ -222,6 +222,25 @@ type
     function GetStr: string;
   end;
 
+  // Track2
+  rTrack2 = packed record
+    Valid: boolean;
+    Raw: AnsiString;
+    sRAW: string;
+
+    PAN,
+    ExpireDate,
+    ServiceCode,
+    PINVerifyData,
+    CVV,
+    ATC,
+    ContactlessIndicator: string;
+
+    procedure Clear;
+    function Deserialize(s: AnsiString): boolean;
+    function GetStr: string;
+  end;
+
 implementation
 
 { rTVR }
@@ -959,6 +978,68 @@ begin
 
   for i := 0 to length(Items) - 1 do
     Result := Result + Items[i].GetStr + #$0D#$0A;
+end;
+
+{ rTrack2 }
+
+procedure rTrack2.Clear;
+begin
+  Valid := false;
+  Raw := '';
+  sRAW := '';
+
+  PAN := '';
+  ExpireDate := '';
+  ServiceCode := '';
+  PINVerifyData := '';
+  CVV := '';
+  ATC := '';
+  ContactlessIndicator := '';
+end;
+
+function rTrack2.Deserialize(s: AnsiString): boolean;
+var
+  st: string;
+  posD: integer;
+begin
+  Result := false;
+  Clear;
+
+  Raw := s;
+  st := RemovePaddingF(Bin2Hex(Raw));
+  sRAW := st;
+
+  posD := Pos('D', st);
+  if posD < 1 then exit;
+
+  PAN := Copy(st, 1, posD - 1);
+  ExpireDate := Copy(st, posD + 1, 4);
+  ServiceCode := Copy(st, posD + 5, 3);
+
+  // length 0 or 5!!!!
+  PINVerifyData := Copy(st, posD + 8, 5);
+
+  CVV := Copy(st, posD + 13, 3);
+  ATC := Copy(st, posD + 16, 4);
+  ContactlessIndicator := Copy(st, posD + 20, 1);
+
+  // check
+  if length(ContactlessIndicator) <> 1 then exit;
+
+  Result := true;
+  Valid := true;
+end;
+
+function rTrack2.GetStr: string;
+begin
+  Result := 'Track2: ' + sRAW + #$0D#$0A +
+    'PAN: ' + PAN + #$0D#$0A +
+    'ExpireDate: ' + ExpireDate + #$0D#$0A +
+    'ServiceCode: ' + ServiceCode + #$0D#$0A +
+    'PIN verify data: ' + PINVerifyData + #$0D#$0A +
+    'CVV: ' + CVV + #$0D#$0A +
+    'ATC: ' + ATC + #$0D#$0A +
+    'Contactless indicator: ' + ContactlessIndicator + #$0D#$0A;
 end;
 
 end.

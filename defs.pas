@@ -18,6 +18,7 @@ function EMVIntegerDecode(s: AnsiString): int64;
 function EMVIntegerHexDecode(s: AnsiString): int64;
 
 function NormalizePAN(pan: AnsiString): AnsiString;
+function RemovePaddingF(s: string): string;
 
 function Hex2Bin(input: string): AnsiString;
 function Bin2HexExt(const input:AnsiString; const spaces: boolean = true; const upcase: boolean = true): string;
@@ -101,15 +102,19 @@ begin
   Result := StrToIntDef(Bin2HexExt(s, false, true), 0);
 end;
 
+function RemovePaddingF(s: string): string;
+begin
+  while (length(s) > 0) and (s[length(s)] = 'F') do
+    s := Copy(s, 1, length(s) - 1);
+
+  Result := s;
+end;
+
 function NormalizePAN(pan: AnsiString): AnsiString;
 var
   s: string;
 begin
-  s := Bin2Hex(pan);
-
-  while (length(s) > 0) and (s[length(s)] = 'F') do
-    s := Copy(s, 1, length(s) - 1);
-
+  s := RemovePaddingF(Bin2Hex(pan));
   Result := Hex2Bin(s);
 end;
 

@@ -358,6 +358,7 @@ var
   TTQ: rTTQ;
   CAuth: rCAuth;
   bank: TVirtualBank;
+  tr2: rTrack2;
 begin
   try
     if cbReaders.ItemIndex < 0 then exit;
@@ -536,7 +537,22 @@ begin
      if emv.GPORes.AIP.MSDsupported then
      begin
        AddLog('--> MSD transaction type.');
-       exit
+
+       AddLog('');
+       AddLog('* Extract Track2');
+       tr2.Deserialize(emv.AFLListGetParam(#$57));
+       if tr2.Valid then
+         AddLog(tr2.GetStr)
+       else
+       begin
+         AddLog('Track2 not valid! Exit.');
+         exit;
+       end;
+
+
+       AddLog('* Check dCVV');
+
+       exit;
      end;
 
      if emv.GPORes.AIP.DDAsupported then
