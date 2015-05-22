@@ -464,7 +464,19 @@ begin
 
       AddLog('');
       AddLog('* * * Trying  PSE');
-      emv.GetAIDsByPSE('2PAY.SYS.DDF01');
+      if not emv.GetAIDsByPSE('2PAY.SYS.DDF01') then
+      begin
+        AddLog('PSE block. exit.');
+        exit;
+      end;
+
+      // EMV 4.3 Book 1 §12.3.2, page 142
+      if cbCheckAIDinPSE.Checked then
+      begin
+        AddLog('');
+        AddLog('* Filter AID according to supported terminal AIDs.');
+        emv.CheckAIDListSupportedByTerminal;
+      end;
 
       if cbPSEForce.Checked then
       begin
