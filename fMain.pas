@@ -213,7 +213,7 @@ begin
       end;
 
       // EMV 4.3 Book 1 §12.3.2, page 142
-      if cbCheckAIDinPSE.Checked then
+      if cbCheckAIDinPSE.Checked and (emv.AIDList.Count > 0) then
       begin
         AddLog('');
         AddLog('* Filter AID according to supported terminal AIDs.');

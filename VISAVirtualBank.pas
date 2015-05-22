@@ -155,6 +155,9 @@ var
 begin
   Result := '';
 
+  // PANSeq - optional element
+  if PANSeq = '' then PANSeq := #$00;
+
   UDKA := NormalizePAN(PAN) + PANSeq;
 
   if length(UDKA) > 8 then
