@@ -142,6 +142,7 @@ type
     Raw: AnsiString;
 
     MSDsupported,
+    VSDCsupported, // deleted from last specifications!!!!
     qVSDCsupported,
     EMVContactChipSupported,
     OfflineOnlyReader,
@@ -292,7 +293,7 @@ begin
   if DDAFailed then r := r + 'DDA failed' + #$0D#$0A;
   if CDAFailed then r := r + 'CDA failed' + #$0D#$0A;
   //b2
-  if ICCandTerminalDifferentAppVersions then r := r + 'ICC and terminal have different applicatioin versions' + #$0D#$0A;
+  if ICCandTerminalDifferentAppVersions then r := r + 'ICC and terminal have different application versions' + #$0D#$0A;
   if ExpiredApp then r := r + 'Expired application' + #$0D#$0A;
   if AppNotYetEffective then r := r + 'Application not yet effective' + #$0D#$0A;
   if RequestedServiceNotAllowedForCard then r := r + 'Requested service not allowed for card product' + #$0D#$0A;
@@ -590,6 +591,7 @@ begin
   Raw := '';
 
   MSDsupported := false;
+  VSDCsupported := false;
   qVSDCsupported := false;
   EMVContactChipSupported := false;
   OfflineOnlyReader := false;
@@ -619,6 +621,7 @@ begin
   p := Prefix;
 
   if MSDsupported then Result := Result + p + 'MSD supported' + #$0D#$0A;
+  if VSDCsupported then Result := Result + p + 'VSDC supported (deleted)' + #$0D#$0A;
   if qVSDCsupported then Result := Result + p + 'qVSDC supported' + #$0D#$0A;
   if EMVContactChipSupported then Result := Result + p + 'EMV contact chip supported' + #$0D#$0A;
   if OfflineOnlyReader then Result := Result + p + 'Offline-only reader' + #$0D#$0A;
@@ -649,6 +652,7 @@ begin
 
   b := byte(s[1]);
   MSDsupported := b and $80 <> 0;
+  VSDCsupported := b and $40 <> 0;
   qVSDCsupported := b and $20 <> 0;
   EMVContactChipSupported := b and $10 <> 0;
   OfflineOnlyReader := b and $08 <> 0;
@@ -677,6 +681,7 @@ begin
 
   b := 0;
   if MSDsupported then b := b or $80;
+  if VSDCsupported then b := b or $40;
   if qVSDCsupported then b := b or $20;
   if EMVContactChipSupported then b := b or $10;
   if OfflineOnlyReader then b := b or $08;
@@ -1025,10 +1030,10 @@ begin
 
   CVV := Copy(st, posD + PINlen + 8, 3);
   ATC := Copy(st, posD + PINlen + 11, 4);
-  ContactlessIndicator := Copy(st, posD + PINlen + 15, 1);
+  ContactlessIndicator := Copy(st, posD + PINlen + 15, 1); // may be empty!
 
   // check
-  if length(ContactlessIndicator) <> 1 then exit;
+  if length(ATC) <> 4 then exit;
 
   Result := true;
   Valid := true;

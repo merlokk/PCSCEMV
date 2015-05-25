@@ -296,6 +296,9 @@ type
     function ExtractMSDData: boolean;
     function CheckdCVV(RawdCVV: AnsiString; bank: TVirtualBank): boolean;
 
+    function CheckActionCode(LogLabel, ActionCode: AnsiString; var res: AnsiString): boolean;
+    function TerminalActionAnalysis: ACTransactionDecision;
+
     function FillCDOLRecords(UseGoodTVR: boolean): boolean;
     function AC(bank: TVirtualBank; TransType: TTransactionType): boolean;
     function GenerateAC(sid: rSID; FirstAC: boolean; bank: TVirtualBank; var resAC: tlvRespTmplAC): boolean;
@@ -666,6 +669,24 @@ begin
   Result := true;
   Result := Result and CDOL1.SetTagValue(Tag, Value);
   Result := Result and CDOL2.SetTagValue(Tag, Value);
+end;
+
+function TEMV.CheckActionCode(LogLabel, ActionCode: AnsiString;
+  var res: AnsiString): boolean;
+var
+  r: AnsiString;
+begin
+  Result := false;
+  if length(ActionCode) = 5  then
+  begin
+    r := AnsiAND(ActionCode, TVR.Serialize);
+    AddLog(LogLabel + Bin2Hex(ActionCode) + ' result: ' + Bin2Hex(r));
+    if res <> #$00#$00#$00#$00#$00 then
+    begin
+      res := r;
+      Result := true;
+    end;
+  end;
 end;
 
 procedure TEMV.CheckAIDListSupportedByTerminal;
@@ -1554,8 +1575,8 @@ begin
       DOL.GetTagValue(#$9F#$37) +
       GPORes.sAIP +
       AC.sATC +
-//      Copy(AC.sIAD, 1, 7) +
-      AC.sIAD +
+      Copy(AC.sIAD, 1, 7) +
+//      AC.IAD.Raw +
       #$80; // PADDING!!!
   while length(Result) mod 8 <> 0 do
     Result := Result + #$00;
@@ -2316,6 +2337,40 @@ begin
   if not FCIPTSelectedApp.PDOL.Valid then exit;
 
   Result := FCIPTSelectedApp.PDOL.SetTagValue(tag, val);
+end;
+
+function TEMV.TerminalActionAnalysis: ACTransactionDecision;
+var
+  IAC,
+  TAC: rTVR;
+  res,
+  sTVR: AnsiString;
+begin
+  Result := tdTC;
+
+  AddLog('');
+  AddLog('* * * Terminal Action Analysis');
+
+  sTVR := TVR.Serialize;
+  AddLog('TVR:' + Bin2Hex(sTVR));
+  AddLog(TVR.DecodeStr);
+
+  res := #$00#$00#$00#$00#$00;
+  // transaction must send online
+  if CheckActionCode('IAC online:  ', AFLListGetParam(#$9F#$0F), res) then Result := tdARQC;
+  if CheckActionCode('TAC online: ', Hex2Bin('DC 40 04 F8 00'), res) then Result := tdARQC;
+  // transaction must declined if we dont have online
+  if CheckActionCode('IAC default: ', AFLListGetParam(#$9F#$0D), res) then Result := tdARQC;
+  if CheckActionCode('TAC default:', Hex2Bin('DC 40 00 A8 00'), res) then Result := tdARQC;
+  // transaction must declined online
+  if CheckActionCode('IAC denial:  ', AFLListGetParam(#$9F#$0E), res) then Result := tdAAC;
+  if CheckActionCode('TAC denial: ', Hex2Bin('00 10 00 00 00'), res) then Result := tdAAC;
+
+  IAC.Deserialize(res);
+  AddLog('result of action code: ' + Bin2Hex(res));
+  AddLog(IAC.DecodeStr);
+
+  AddLog('TAA result: ' + ACTransactionDecisionStr[Result]);
 end;
 
 { tlvAppTemplate }

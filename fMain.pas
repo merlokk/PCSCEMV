@@ -301,6 +301,9 @@ begin
     // Terminal Risk Management
     emv.RiskManagement;
 
+    // Terminal Action Analysis
+    emv.TerminalActionAnalysis;
+
     if cbUpToAC1.Checked then
     begin
       AddLog('');
@@ -329,7 +332,6 @@ begin
     // AC
     bank := TVirtualBank.Create;
     if not emv.AC(bank, trParams.TransactionType) then exit;
-
 
     // Issuer scripts processing
     IssuerScriptProcessing(emv, bank);
@@ -391,6 +393,7 @@ begin
     // 9F66 Terminal Transaction Qualifiers (TTQ).
     TTQ.Clear;
     TTQ.MSDsupported := ottMSD in trParams.OfflineTransactionType;
+    TTQ.VSDCsupported := ottVSDC in trParams.OfflineTransactionType;
     TTQ.qVSDCsupported := ottqVSDC in trParams.OfflineTransactionType;
     TTQ.OnlinePINSupported := true;
     TTQ.SignatureSupported := true;

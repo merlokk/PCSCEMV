@@ -326,8 +326,6 @@ object fPOS: TfPOS
       Width = 244
       Height = 17
       Caption = 'VSDC (Visa Smart Debit/Credit)'
-      Checked = True
-      State = cbChecked
       TabOrder = 30
     end
     object cbMSD: TCheckBox

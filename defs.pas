@@ -27,6 +27,7 @@ function Bin2Hex(const input:AnsiString): string;
 function StrSafeInc(s: AnsiString; var indx: integer; incval: integer = 1): boolean;
 
 function AnsiXOR(x1, x2: AnsiString): AnsiString;
+function AnsiAND(x1, x2: AnsiString): AnsiString;
 
 const
   HexChars: String = '0123456789abcdefABCDEF';
@@ -41,6 +42,16 @@ begin
   if length(x1) <> length(x2) then exit;
   for i := 1 to length(x1) do
     Result := Result + AnsiChar(byte(x1[i]) xor byte(x2[i]));
+end;
+
+function AnsiAND(x1, x2: AnsiString): AnsiString;
+var
+ i: integer;
+begin
+  Result := '';
+  if length(x1) <> length(x2) then exit;
+  for i := 1 to length(x1) do
+    Result := Result + AnsiChar(byte(x1[i]) and byte(x2[i]));
 end;
 
 procedure AddLog(s: string);
