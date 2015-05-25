@@ -255,6 +255,8 @@ type
     IssuerPublicKey,
     ICCPublicKey: TRSAPublicKey;
 
+    Track2: rTrack2;
+
     AC1Result,
     AC2Result: tlvRespTmplAC;
 
@@ -290,6 +292,9 @@ type
 
     function GetPINKey: TRSAPublicKey;
     function RunPINVerify(pin: String; EncPIN: boolean): boolean;
+
+    function ExtractMSDData: boolean;
+    function CheckdCVV(RawdCVV: AnsiString; bank: TVirtualBank): boolean;
 
     function FillCDOLRecords(UseGoodTVR: boolean): boolean;
     function AC(bank: TVirtualBank; TransType: TTransactionType): boolean;
@@ -675,6 +680,28 @@ begin
    end;
 end;
 
+function TEMV.CheckdCVV(RawdCVV: AnsiString; bank: TVirtualBank): boolean;
+var
+  dCVV: string;
+begin
+  Result := false;
+
+  dCVV := bank.CalcdCVV(
+      AFLListGetParam(#$5A),     // PAN
+      AFLListGetParam(#$5F#$34), // PAN Sequence Number
+      RawdCVV);
+
+   if dCVV = Track2.CVV then
+     AddLog('dCVV OK')
+   else
+   begin
+     AddLog('dCVV error! Track2 CVV:' + Track2.CVV + ', calculated:' + dCVV);
+     exit;
+   end;
+
+  Result := true;
+end;
+
 function TEMV.CheckPINTryCount: boolean;
 var
  trycount: integer;
@@ -717,6 +744,8 @@ begin
   TVR.Clear;
   ICCPublicKey.Clear;
 
+  Track2.Clear;
+
   AC1Result.Clear;
   AC2Result.Clear;
 end;
@@ -736,6 +765,24 @@ begin
 
   AddLog('Result: ' + IntToHex(sw, 4) + ' ' + Bin2Hex(idata));
   Result := (Hi(sw) = $90) or (Hi(sw) = $62) or (Hi(sw) = $63);
+end;
+
+function TEMV.ExtractMSDData: boolean;
+begin
+  Result := false;
+
+  AddLog('');
+  AddLog('* Extract Track2');
+  Track2.Deserialize(AFLListGetParam(#$57));
+  if Track2.Valid then
+    AddLog(Track2.GetStr)
+  else
+  begin
+    AddLog('Track2 not valid! Exit.');
+    exit;
+  end;
+
+  Result := true;
 end;
 
 function TEMV.GetIssuerCmdMAC(bank: TVirtualBank; command: AnsiString; data: AnsiString): AnsiString;

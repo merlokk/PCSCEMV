@@ -26,6 +26,8 @@ function Bin2Hex(const input:AnsiString): string;
 
 function StrSafeInc(s: AnsiString; var indx: integer; incval: integer = 1): boolean;
 
+function AnsiXOR(x1, x2: AnsiString): AnsiString;
+
 const
   HexChars: String = '0123456789abcdefABCDEF';
 

@@ -29,6 +29,9 @@ type
     class function DesMACEmv(data, Key: AnsiString): AnsiString;
     class function TripleDesECBEncode(data, Key: AnsiString): AnsiString;
 
+    class function DesEncode(data, Key: AnsiString): AnsiString;
+    class function DesDecode(data, Key: AnsiString): AnsiString;
+
     class function GetRandom(cnt: integer): AnsiString;
 
     class function SHA1Hash(data: AnsiString): AnsiString;
@@ -120,6 +123,115 @@ begin
 
   {encrypt and save full block}
   EncryptTripleDES(Context, Block);
+
+  SetLength(res, SizeOf(Block));
+  Move(Block[0], res[1], SizeOf(Block));
+  Result := Result + res;
+end;
+
+class function TCipher.DesDecode(data, Key: AnsiString): AnsiString;
+var
+  i,
+  indx       : Longint;
+  Block,
+  Work,
+  PrevBlock  : TDESBlock;
+  Context    : TDESContext;
+  DKey       : TKey64;
+  BlockCount : LongInt;
+  OddCount   : Byte;
+  res        : AnsiString;
+begin
+  Result := '';
+  if length(data) = 0 then exit;
+
+  if Length(Key) <> SizeOf(DKey) then exit;
+
+  Move(Key[1], DKey[0], SizeOf(DKey));
+  InitEncryptDES(DKey, Context, false);
+
+  {get the number of blocks in the file}
+  BlockCount := (length(data) div SizeOf(Block));
+  OddCount := length(data) mod SizeOf(Block);
+  if OddCount <> 0 then exit;
+
+  { initialization vector }
+  FillChar(PrevBlock, SizeOf(PrevBlock), #0);
+
+  indx := 1;
+  {process all }
+  for I := 1 to BlockCount do
+  begin
+    Move(data[indx], Block[0], SizeOf(Block));
+    indx := indx + SizeOf(Block);
+
+    Work := Block;
+
+    EncryptDESCBC(Context, PrevBlock, Block);
+
+    PrevBlock := Work;
+
+    SetLength(res, SizeOf(Block));
+    Move(Block[0], res[1], SizeOf(Block));
+    Result := Result + res;
+  end;
+end;
+
+class function TCipher.DesEncode(data, Key: AnsiString): AnsiString;
+var
+  i,
+  indx       : Longint;
+  Block      : TDESBlock;
+  PrevBlock  : TDESBlock;
+  Context    : TDESContext;
+  DKey       : TKey64;
+  BlockCount : LongInt;
+  OddCount   : Byte;
+  res        : AnsiString;
+begin
+  Result := '';
+  if length(data) = 0 then exit;
+
+  if Length(Key) <> SizeOf(DKey) then exit;
+
+  Move(Key[1], DKey[0], SizeOf(DKey));
+  InitEncryptDES(DKey, Context, true);
+
+  {get the number of blocks in the file}
+  BlockCount := (length(data) div SizeOf(Block));
+  OddCount := length(data) mod SizeOf(Block);
+
+  { initialization vector }
+  FillChar(PrevBlock, SizeOf(PrevBlock), #0);
+
+  { get number of bytes to pad at the end }
+  if (OddCount > 0) then
+    Inc(BlockCount)
+  else
+    OddCount := 8;
+
+  indx := 1;
+  {process all except the last block}
+  for I := 1 to BlockCount - 1 do
+  begin
+    Move(data[indx], Block[0], SizeOf(Block));
+    indx := indx + SizeOf(Block);
+
+    EncryptDESCBC(Context, PrevBlock, Block);
+
+    PrevBlock := Block;
+
+    SetLength(res, SizeOf(Block));
+    Move(Block[0], res[1], SizeOf(Block));
+    Result := Result + res;
+  end;
+
+  { process the last block }
+  FillChar(Block, SizeOf(Block), #0);
+  Move(data[indx], Block[0], OddCount);
+
+  {encrypt and save full block}
+  EncryptDESCBC(Context, PrevBlock, Block);
 
   SetLength(res, SizeOf(Block));
   Move(Block[0], res[1], SizeOf(Block));

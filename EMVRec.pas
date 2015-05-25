@@ -238,6 +238,7 @@ type
 
     procedure Clear;
     function Deserialize(s: AnsiString): boolean;
+    function GetdCVVRaw: AnsiString;
     function GetStr: string;
   end;
 
@@ -1000,6 +1001,7 @@ end;
 function rTrack2.Deserialize(s: AnsiString): boolean;
 var
   st: string;
+  PINlen,
   posD: integer;
 begin
   Result := false;
@@ -1016,18 +1018,32 @@ begin
   ExpireDate := Copy(st, posD + 1, 4);
   ServiceCode := Copy(st, posD + 5, 3);
 
-  // length 0 or 5!!!!
-  PINVerifyData := Copy(st, posD + 8, 5);
+  // here must be value calculated from 9F67 MSD Offset
+  PINlen := 5;
 
-  CVV := Copy(st, posD + 13, 3);
-  ATC := Copy(st, posD + 16, 4);
-  ContactlessIndicator := Copy(st, posD + 20, 1);
+  PINVerifyData := Copy(st, posD + 8, PINlen);
+
+  CVV := Copy(st, posD + PINlen + 8, 3);
+  ATC := Copy(st, posD + PINlen + 11, 4);
+  ContactlessIndicator := Copy(st, posD + PINlen + 15, 1);
 
   // check
   if length(ContactlessIndicator) <> 1 then exit;
 
   Result := true;
   Valid := true;
+end;
+
+function rTrack2.GetdCVVRaw: AnsiString;
+var
+  s: string;
+begin
+  s := ATC + Copy(PAN, 5, length(PAN)) + ExpireDate + ServiceCode;
+
+  if length(s) < 32 then
+    s := s + StringOfChar('0', 32 - length(s));
+
+  Result := Hex2Bin(s);
 end;
 
 function rTrack2.GetStr: string;

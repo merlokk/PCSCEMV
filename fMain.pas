@@ -358,7 +358,7 @@ var
   TTQ: rTTQ;
   CAuth: rCAuth;
   bank: TVirtualBank;
-  tr2: rTrack2;
+  RawdCVV: AnsiString;
 begin
   try
     if cbReaders.ItemIndex < 0 then exit;
@@ -538,19 +538,19 @@ begin
      begin
        AddLog('--> MSD transaction type.');
 
-       AddLog('');
-       AddLog('* Extract Track2');
-       tr2.Deserialize(emv.AFLListGetParam(#$57));
-       if tr2.Valid then
-         AddLog(tr2.GetStr)
-       else
-       begin
-         AddLog('Track2 not valid! Exit.');
-         exit;
-       end;
-
+       if not emv.ExtractMSDData then exit;
 
        AddLog('* Check dCVV');
+
+       RawdCVV := emv.Track2.GetdCVVRaw;
+       AddLog('* dCVV raw data: ' + Bin2Hex(RawdCVV));
+
+       bank := TVirtualBank.Create;
+       try
+         if not emv.CheckdCVV(RawdCVV, bank) then exit;
+       finally
+         bank.Free;
+       end;
 
        exit;
      end;

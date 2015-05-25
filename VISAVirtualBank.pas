@@ -25,6 +25,8 @@ type
     function CalculateARPC(PAN, PANSequence, RawData: AnsiString): AnsiString;
     function GetHostResponse: AnsiString;
 
+    function CalcdCVV(PAN, PANSequence, RawData: AnsiString): string;
+
     function IssuerScriptCalcMAC(PAN, PANSequence, ATC, RawData: AnsiString): AnsiString;
 
     constructor Create;
@@ -65,6 +67,40 @@ begin
   if UDKMAC = '' then exit;
 
   Result := TCipher.DesMACEmv(RawData, UDKMAC);
+end;
+
+function TVirtualBank.CalcdCVV(PAN, PANSequence,
+  RawData: AnsiString): string;
+var
+  UDKMAC,
+  block: AnsiString;
+  i: integer;
+  s,
+  r: string;
+begin
+  Result := '';
+  if length(RawData) <> 16 then exit;
+
+  UDKMAC := GetUDK(PAN, PANSequence, ktMAC);
+  if UDKMAC = '' then exit;
+
+  block := TCipher.DesEncode(Copy(RawData, 1, 8), Copy(UDKMAC, 1, 8));
+  block := AnsiXOR(block, Copy(RawData, 9, 8));
+
+  block := TCipher.DesEncode(block, Copy(UDKMAC, 1, 8));
+  block := TCipher.DesDecode(block, Copy(UDKMAC, 9, 8));
+  block := TCipher.DesEncode(block, Copy(UDKMAC, 1, 8));
+
+  s := Bin2Hex(block);
+  r := '';
+
+  for i := 1 to length(s) do
+    if CharInSet(s[i], ['0'..'9']) then r := r + s[i];
+    
+  for i := 1 to length(s) do
+    if CharInSet(s[i], ['A'..'F']) then r := r + Char(byte('0') + byte(s[i]) - byte('A'));
+
+  Result := Copy(r, 1, 3);
 end;
 
 constructor TVirtualBank.Create;
