@@ -48,6 +48,7 @@ type
     cbMSD: TCheckBox;
     Label5: TLabel;
     cbCheckAIDinPSE: TCheckBox;
+    cbCDAEnabled: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure btRunContactClick(Sender: TObject);
     procedure btRunContactlessClick(Sender: TObject);
@@ -114,6 +115,7 @@ var
   emv: TEMV;
   bank: TVirtualBank;
   trParams: TTRansactionParameters;
+  canCDA: boolean;
 begin
   try
     // transaction parameters
@@ -331,7 +333,28 @@ begin
 
     // AC
     bank := TVirtualBank.Create;
-    if not emv.AC(bank, trParams.TransactionType) then exit;
+
+    canCDA := false;
+    if cbCDAEnabled.Checked then
+    begin
+      canCDA := true;
+      if not emv.GPORes.AIP.CDASupported then
+      begin
+        AddLog('Cant do CDA. CDA not supported according to AIP.');
+        canCDA := false;
+      end;
+
+      if not emv.ICCPublicKey.Valid then
+      begin
+        AddLog('Cant do CDA. ICCPublicKey not valid.');
+        canCDA := false;
+      end;
+    end;
+
+    if canCDA then
+      AddLog('CDA execution enabled.');
+
+    if not emv.AC(bank, trParams.TransactionType, canCDA) then exit;
 
     // Issuer scripts processing
     IssuerScriptProcessing(emv, bank);

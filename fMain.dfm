@@ -37,22 +37,22 @@ object fPOS: TfPOS
       Caption = 'PIN'
     end
     object Label3: TLabel
-      Left = 255
-      Top = 220
+      Left = 583
+      Top = 19
       Width = 95
       Height = 16
       Caption = 'Transaction type'
     end
     object Label4: TLabel
       Left = 584
-      Top = 19
+      Top = 141
       Width = 81
       Height = 16
       Caption = 'Issuer scripts:'
     end
     object Label5: TLabel
-      Left = 255
-      Top = 247
+      Left = 584
+      Top = 46
       Width = 198
       Height = 16
       Caption = 'Contactless transactions accepted:'
@@ -77,11 +77,11 @@ object fPOS: TfPOS
     end
     object btRunContact: TButton
       Left = 16
-      Top = 216
+      Top = 236
       Width = 129
       Height = 25
       Caption = 'Run contact'
-      TabOrder = 13
+      TabOrder = 14
       OnClick = btRunContactClick
     end
     object cbATR: TCheckBox
@@ -132,7 +132,7 @@ object fPOS: TfPOS
       Width = 75
       Height = 25
       Caption = 'Test'
-      TabOrder = 17
+      TabOrder = 18
       OnClick = Button2Click
     end
     object cbAPDULogging: TCheckBox
@@ -155,19 +155,19 @@ object fPOS: TfPOS
     end
     object btSaveLog: TButton
       Left = 158
-      Top = 288
+      Top = 308
       Width = 75
       Height = 25
       Caption = 'Save log'
-      TabOrder = 15
+      TabOrder = 16
       OnClick = btSaveLogClick
     end
     object edLogName: TEdit
       Left = 16
-      Top = 288
+      Top = 308
       Width = 136
       Height = 24
-      TabOrder = 16
+      TabOrder = 17
     end
     object cbUpToAC1: TCheckBox
       Left = 255
@@ -186,13 +186,13 @@ object fPOS: TfPOS
       TabOrder = 10
     end
     object cbTransactionType: TComboBox
-      Left = 356
-      Top = 217
+      Left = 684
+      Top = 16
       Width = 145
       Height = 24
       Style = csDropDownList
       ItemIndex = 1
-      TabOrder = 18
+      TabOrder = 19
       Text = 'Online'
       Items.Strings = (
         'Offline'
@@ -208,135 +208,135 @@ object fPOS: TfPOS
     end
     object cbSPINUnblock: TCheckBox
       Left = 584
-      Top = 64
+      Top = 186
       Width = 137
       Height = 17
       Caption = 'PIN unblock'
-      TabOrder = 19
+      TabOrder = 20
     end
     object cbSAppUnblock: TCheckBox
       Left = 584
-      Top = 41
+      Top = 163
       Width = 145
       Height = 17
       Caption = 'Application unblock'
-      TabOrder = 20
+      TabOrder = 21
     end
     object cbSPINChange: TCheckBox
       Left = 584
-      Top = 87
+      Top = 209
       Width = 137
       Height = 17
       Caption = 'PIN change'
-      TabOrder = 21
+      TabOrder = 22
     end
     object cbSUpdateRecord: TCheckBox
       Left = 584
-      Top = 110
+      Top = 232
       Width = 145
       Height = 17
       Caption = 'Update Record'
-      TabOrder = 22
+      TabOrder = 23
     end
     object edSFI: TEdit
       Left = 584
-      Top = 133
+      Top = 255
       Width = 33
       Height = 24
       Hint = 'SFI'
       ParentShowHint = False
       ShowHint = True
-      TabOrder = 23
+      TabOrder = 24
       Text = '03'
     end
     object edRECN: TEdit
       Left = 623
-      Top = 133
+      Top = 255
       Width = 34
       Height = 24
       Hint = 'Record number'
       ParentShowHint = False
       ShowHint = True
-      TabOrder = 24
+      TabOrder = 25
       Text = '03'
     end
     object edRecord: TEdit
       Left = 663
-      Top = 133
+      Top = 255
       Width = 434
       Height = 24
       Hint = 'Record data'
       ParentShowHint = False
       ShowHint = True
-      TabOrder = 25
+      TabOrder = 26
       Text = '70 12 8E 10 00 00 00 00 00 00 00 00 41 03 1E 03 42 03 1F 02'
     end
     object cbSPutData: TCheckBox
       Left = 584
-      Top = 163
+      Top = 285
       Width = 105
       Height = 17
       Caption = 'Put data'
-      TabOrder = 26
+      TabOrder = 27
     end
     object edTag: TEdit
       Left = 584
-      Top = 186
+      Top = 308
       Width = 73
       Height = 24
       Hint = 'SFI'
       ParentShowHint = False
       ShowHint = True
-      TabOrder = 27
+      TabOrder = 28
       Text = '9F 53'
     end
     object edValue: TEdit
       Left = 663
-      Top = 186
+      Top = 308
       Width = 434
       Height = 24
       Hint = 'Record data'
       ParentShowHint = False
       ShowHint = True
-      TabOrder = 28
+      TabOrder = 29
       Text = 'FF'
     end
     object btRunContactless: TButton
       Left = 16
-      Top = 247
+      Top = 267
       Width = 129
       Height = 25
       Caption = 'Run contactless'
-      TabOrder = 14
+      TabOrder = 15
       OnClick = btRunContactlessClick
     end
     object cbqVSDC: TCheckBox
-      Left = 256
-      Top = 292
+      Left = 585
+      Top = 91
       Width = 257
       Height = 17
       Caption = 'qVSDC (Quick Visa Smart Debit/Credit)'
       Checked = True
       State = cbChecked
-      TabOrder = 29
+      TabOrder = 30
     end
     object cbVSDC: TCheckBox
-      Left = 257
-      Top = 315
+      Left = 586
+      Top = 114
       Width = 244
       Height = 17
       Caption = 'VSDC (Visa Smart Debit/Credit)'
-      TabOrder = 30
+      TabOrder = 31
     end
     object cbMSD: TCheckBox
-      Left = 255
-      Top = 269
+      Left = 584
+      Top = 68
       Width = 234
       Height = 17
       Caption = 'MSD (Magnetic Stripe Data)'
       Checked = True
       State = cbChecked
-      TabOrder = 31
+      TabOrder = 32
     end
     object cbCheckAIDinPSE: TCheckBox
       Left = 255
@@ -348,6 +348,14 @@ object fPOS: TfPOS
       State = cbChecked
       TabOrder = 6
     end
+    object cbCDAEnabled: TCheckBox
+      Left = 255
+      Top = 217
+      Width = 278
+      Height = 17
+      Caption = 'Enable CDA in AC'
+      TabOrder = 13
+    end
   end
   object meLog: TMemo
     Left = 0
@@ -357,7 +365,5 @@ object fPOS: TfPOS
     Align = alClient
     ScrollBars = ssVertical
     TabOrder = 1
-    ExplicitTop = 321
-    ExplicitHeight = 612
   end
 end

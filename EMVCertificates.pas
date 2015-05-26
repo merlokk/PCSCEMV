@@ -76,12 +76,24 @@ type
     function Deserialize(s: AnsiString): boolean;
   end;
 
+  // ICC Dynamic data for CDA
+  certCDAICCDynData = packed record
+    ICCDynNumberLen: byte;
+    ICCDynNumber,
+    sCID,
+    sAC,
+    Hash: AnsiString;
+
+    procedure Clear;
+    function Deserialize(s: AnsiString): boolean;
+  end;
+
   // Signed Dynamic Application Data
   certSignedDynamicAppData = packed record
     Raw: AnsiString;
 
     HashAlgorithmId,
-    ICCDynDataLenCnt: byte;
+    ICCDynDataLen: byte;
     ICCDynData,
     PadPattern,
     Hash: AnsiString;
@@ -458,7 +470,7 @@ begin
   Raw := '';
 
   HashAlgorithmId := 0;
-  ICCDynDataLenCnt := 0;
+  ICCDynDataLen := 0;
   ICCDynData := '';
   PadPattern := '';
   Hash := '';
@@ -480,9 +492,9 @@ begin
   len := length(s) - 25;
 
   HashAlgorithmId := byte(s[3]);
-  ICCDynDataLenCnt := byte(s[4]);
-  ICCDynData := Copy(s, 5, ICCDynDataLenCnt);
-  PadPattern := Copy(s, 5 + ICCDynDataLenCnt, len - ICCDynDataLenCnt);
+  ICCDynDataLen := byte(s[4]);
+  ICCDynData := Copy(s, 5, ICCDynDataLen);
+  PadPattern := Copy(s, 5 + ICCDynDataLen, len - ICCDynDataLen);
   Hash := Copy(s, 5 + len, 20);
 
   Raw := s;
@@ -650,6 +662,37 @@ begin
 
   Result.Exponent := EncPubKeyExponent;
   Result.Modulus := EncPubKey;
+end;
+
+{ certCDAICCDynData }
+
+procedure certCDAICCDynData.Clear;
+begin
+  ICCDynNumberLen := 0;
+  ICCDynNumber := '';
+  sCID := '';
+  sAC := '';
+  Hash := '';
+end;
+
+function certCDAICCDynData.Deserialize(s: AnsiString): boolean;
+begin
+  Result := false;
+  Clear;
+
+  if length(s) < 32 then exit;
+
+  ICCDynNumberLen := byte(s[1]);
+  if length(s) <> 30 + ICCDynNumberLen then exit;
+
+  ICCDynNumber := Copy(s, 2, ICCDynNumberLen);
+  sCID := s[ICCDynNumberLen + 2];
+  sAC := Copy(s, ICCDynNumberLen + 3, 8);
+  Hash := Copy(s, ICCDynNumberLen + 11, 20);
+
+  if length(Hash) <> 20 then exit;
+
+  Result := true;
 end;
 
 end.

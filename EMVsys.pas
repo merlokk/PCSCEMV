@@ -128,7 +128,7 @@ type
     Raw: byte;
 
     ACT: ACTransactionDecision;
-    CDASignRequested, // inputof AC command
+    CDASignRequested, // input of AC command
     AdviceRequired: boolean;
     RC: ACReasonCode;
 
@@ -149,7 +149,10 @@ type
     sCID,
     sATC,
     AC,
-    sIAD: AnsiString;
+    sSDAD,
+    sIAD,
+
+    HashData: AnsiString;
 
     function DeserializeF80(data: AnsiString): boolean;  // format 1
     function DeserializeF77(elm: TTLV): boolean;         // format 2
@@ -296,12 +299,13 @@ type
     function ExtractMSDData: boolean;
     function CheckdCVV(RawdCVV: AnsiString; bank: TVirtualBank): boolean;
 
-    function CheckActionCode(LogLabel, ActionCode: AnsiString; var res: AnsiString): boolean;
+    function CheckActionCode(LogLabel: string; ActionCode: AnsiString; var res: AnsiString): boolean;
     function TerminalActionAnalysis: ACTransactionDecision;
 
     function FillCDOLRecords(UseGoodTVR: boolean): boolean;
-    function AC(bank: TVirtualBank; TransType: TTransactionType): boolean;
+    function AC(bank: TVirtualBank; TransType: TTransactionType; makeCDA: boolean = false): boolean;
     function GenerateAC(sid: rSID; FirstAC: boolean; bank: TVirtualBank; var resAC: tlvRespTmplAC): boolean;
+    function CheckCDA_SDAD(FirstAC: boolean; var resAC: tlvRespTmplAC): boolean;
 
     function qVSDCCryptogramCheck(bank: TVirtualBank): boolean;
     function qVSDCIssuerAuthenticate(bank: TVirtualBank): boolean;
@@ -523,7 +527,7 @@ end;
 
 { TEMV }
 
-function TEMV.AC(bank: TVirtualBank;  TransType: TTransactionType): boolean;
+function TEMV.AC(bank: TVirtualBank;  TransType: TTransactionType; makeCDA: boolean): boolean;
 var
   sw: word;
   ARC,
@@ -537,6 +541,7 @@ begin
 
   // AC1
   sid.Clear;
+  sid.CDASignRequested := makeCDA;
   if TransType = ttOffline then
     sid.ACT := tdTC; // request for offline transaction
   if TransType = ttOnline then
@@ -671,7 +676,7 @@ begin
   Result := Result and CDOL2.SetTagValue(Tag, Value);
 end;
 
-function TEMV.CheckActionCode(LogLabel, ActionCode: AnsiString;
+function TEMV.CheckActionCode(LogLabel: string; ActionCode: AnsiString;
   var res: AnsiString): boolean;
 var
   r: AnsiString;
@@ -699,6 +704,75 @@ begin
       AddLog('AID: ' + Bin2HexExt(AIDList[i].AID) + ' deleted.');
       AIDList.Delete(i);
    end;
+end;
+
+function TEMV.CheckCDA_SDAD(FirstAC: boolean; var resAC: tlvRespTmplAC): boolean;
+var
+  Hash,
+  sICCDynData: AnsiString;
+  SDAD: certSignedDynamicAppData;
+  ICCDynData: certCDAICCDynData;
+begin
+  Result := false;
+  AddLog('* * * CDA. Check Signed Dynamic Application Data');
+
+  sICCDynData := TCipher.RSADecode(resAC.sSDAD, ICCPublicKey);
+  AddLog('Signed Dynamic Application Data:');
+  AddLog(Bin2HexExt(sICCDynData, true, true));
+
+  SDAD.CKeySize := ICCPublicKey.Size;
+  SDAD.CHashData := RandomNumber;
+  if SDAD.Deserialize(sICCDynData) then
+    AddLog('Signed Dynamic Application Data OK.')
+  else
+  begin
+    AddLog('Signed Dynamic Application Data check error.');
+    TVR.CDAFailed := true;
+    exit;
+  end;
+
+  AddLog('ICC dynamic data:' + Bin2HexExt(SDAD.ICCDynData));
+  if not ICCDynData.Deserialize(SDAD.ICCDynData) then
+  begin
+    AddLog('CDA error. Cant deserialize ICC dynamic data.');
+    TVR.CDAFailed := true;
+    exit;
+  end;
+
+  if ICCDynData.sCID <> resAC.sCID then
+  begin
+    AddLog('CDA error. CID in ICC dynamic data differs from CID in AC response.');
+    TVR.CDAFailed := true;
+    exit;
+  end;
+
+  resAC.AC := ICCDynData.sAC;
+  AddLog('Application Cryptogram (AC): ' + Bin2HexExt(ICCDynData.sAC));
+
+  // check transaction data hash code
+  if FirstAC then
+    sICCDynData := FCIPTSelectedApp.PDOL.SerializeValues +
+      CDOL1.SerializeValues +
+      resAC.HashData
+  else
+    sICCDynData := FCIPTSelectedApp.PDOL.SerializeValues +
+      CDOL1.SerializeValues +
+      CDOL2.SerializeValues +
+      resAC.HashData;
+
+  AddLog('Raw transaction data:' + Bin2HexExt(sICCDynData));
+  Hash := TCipher.SHA1Hash(sICCDynData);
+
+  if Hash <> ICCDynData.Hash then
+  begin
+    AddLog('CDA error. Transaction Data Hash code not valid.');
+    TVR.CDAFailed := true;
+    exit;
+  end;
+
+  AddLog('CDA OK.');
+  AddLog('');
+  Result := true;
 end;
 
 function TEMV.CheckdCVV(RawdCVV: AnsiString; bank: TVirtualBank): boolean;
@@ -1196,6 +1270,7 @@ end;
 function TEMV.GenerateAC(sid: rSID; FirstAC: boolean; bank: TVirtualBank; var resAC: tlvRespTmplAC): boolean;
 Var
   ICCDynamicNumber,
+  raw,
   RawDataARQC,
   res: AnsiString;
   sw: word;
@@ -1283,6 +1358,10 @@ begin
     AddLog('AC response not valid. exit.');
     exit;
   end;
+
+  // CDA path
+  if (sid.CDASignRequested) and (resAC.sSDAD <> '') then
+    if not CheckCDA_SDAD(FirstAC, resAC) then exit;
 
   AddLog('* * * Cryptogram verification ARQC');
 
@@ -2341,8 +2420,7 @@ end;
 
 function TEMV.TerminalActionAnalysis: ACTransactionDecision;
 var
-  IAC,
-  TAC: rTVR;
+  IAC: rTVR;
   res,
   sTVR: AnsiString;
 begin
@@ -2809,6 +2887,10 @@ begin
   sIAD := '';
   CID.Clear;
   ATC := 0;
+
+  sSDAD := '';
+  HashData := '';
+
   IAD.Valid := false;
 end;
 
@@ -2945,6 +3027,8 @@ begin
 end;
 
 function tlvRespTmplAC.DeserializeF77(elm: TTLV): boolean;
+var
+  i: integer;
 begin
   Result := false;
   Valid := false;
@@ -2957,17 +3041,28 @@ begin
   if elm.Tag <> #$77 then exit;
 
   // 9F27: Cryptogram Information Data
-  if not elm.GetPathValue([#$9F#$27], sCID) then exit;
+  elm.GetPathValue([#$9F#$27], sCID);
 
   // 9F36: Application Transaction Counter (ATC)
-  if not elm.GetPathValue([#$9F#$36], sATC) then exit;
+  elm.GetPathValue([#$9F#$36], sATC);
 
-  // 9F26: Application Cryptogram
-  if not elm.GetPathValue([#$9F#$26], AC) then exit;
+  // 9F26: Application Cryptogram (for generate AC)
+  elm.GetPathValue([#$9F#$26], AC);
+
+  // 9F4B: Signed Dynamic Application Data (for CDA)
+  elm.GetPathValue([#$9F#$4B], sSDAD);
+
+  if (sCID = '') or (sATC = '') or
+     ((AC = '') and (sSDAD = '')) then exit;
 
   // 9F10:(Issuer Application Data
   elm.GetPathValue([#$9F#$10], sIAD); // optional
   IAD.Deserialize(sIAD);
+
+  HashData := '';
+  for i := 0 to elm.Items.Count - 1 do
+    if elm.Items[i].Tag <> #$9F#$4B then
+      HashData := HashData + elm.Items[i].Serialize;
 
   CID.Deserialize(byte(sCID[1]));
   ATC := EMVIntegerHexDecode(sATC);
