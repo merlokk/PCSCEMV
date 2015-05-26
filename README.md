@@ -13,11 +13,11 @@
 9. Make DDA
 10. Check PIN
 11. Fill CDOL1 and CDOL2
-12. Execute AC1
+12. Execute AC1 (with CDA support)
 13. Check ARQC (bank part)
 14. Make ARPC (bank part)
 15. Execute external authenticate
-16. Execute AC2
+16. Execute AC2 (with CDA support)
 17. Check ARQC cryptogram
 18. Issuer scripts processing
 
