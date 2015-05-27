@@ -46,7 +46,7 @@ type
   end;
 
   // Card Verification Results EMV4.3 book3, 7.3, page 207
-  rCVR = packed record
+  rCVREMV = packed record
     Raw: AnsiString;
 
     //b1
@@ -84,6 +84,44 @@ type
     function Deserialize(s: AnsiString): boolean;
     function DecodeStr: string;
   end;
+
+  // Card Verification Results VIS 1.5 table A-1, page A-39
+  rCVR = packed record
+    Raw: AnsiString;
+
+    //b1
+    //Application Cryptogram Type Returned in Second GENERATE AC
+    // ARQC == Second GENERATE AC Not Requested!!
+    AC2Decision: ACTransactionDecision;
+    //Application Cryptogram Type Returned in First GENERATE AC
+    AC1Decision: ACTransactionDecision;
+
+    IssuerAuthenticationPerformedAndFailed,
+    OfflinePINverificationPerformed,
+    OfflinePINverificationFailed,
+    UnableGoOnline,
+
+    //b2
+    LastOnlineTransactionNOTCompleted,
+    PINTryLimitExceeded,
+    ExceededVelCheckCounters,
+    NewCard,
+    IssuerAuthFailOnLastOnlineTrans,
+    IssuerAuthNotPerformedAafterOnlAuth,
+    AppBlockedPINTryLimitExceeded,
+    OfflineStaticAuthFailedOnLastTrans: boolean;
+
+    //b3 
+    NumIssuerScriptCommands: byte;
+    IssuerScriptProcessingFailed,
+    OfflineDynDataAuthFailedOnLastTrans,
+    OfflineDynDataAuthPerformed: boolean;
+
+    procedure Clear;
+    function Deserialize(s: AnsiString): boolean;
+    function DecodeStr: string;
+  end;
+
 
   // Issuer Application Data (IAD)
   rIAD = packed record
@@ -459,9 +497,9 @@ begin
   Valid := true;
 end;
 
-{ rCVR }
+{ rCVREMV }
 
-procedure rCVR.Clear;
+procedure rCVREMV.Clear;
 begin
   Raw := '';
 
@@ -495,7 +533,7 @@ begin
   UnableGoOnline := false;
 end;
 
-function rCVR.DecodeStr: string;
+function rCVREMV.DecodeStr: string;
 var
   r: string;
 begin
@@ -527,7 +565,7 @@ begin
   Result := r;
 end;
 
-function rCVR.Deserialize(s: AnsiString): boolean;
+function rCVREMV.Deserialize(s: AnsiString): boolean;
 var
   b: array[1..5] of byte;
   i: Integer;
@@ -1061,6 +1099,115 @@ begin
     'CVV: ' + CVV + #$0D#$0A +
     'ATC: ' + ATC + #$0D#$0A +
     'Contactless indicator: ' + ContactlessIndicator + #$0D#$0A;
+end;
+
+{ rCVR }
+
+procedure rCVR.Clear;
+begin
+  AC2Decision := tdAAC;
+  AC1Decision := tdAAC;
+
+  IssuerAuthenticationPerformedAndFailed := false;
+  OfflinePINverificationPerformed := false;
+  OfflinePINverificationFailed := false;
+  UnableGoOnline := false;
+
+  LastOnlineTransactionNOTCompleted := false;
+  PINTryLimitExceeded := false;
+  ExceededVelCheckCounters := false;
+  NewCard := false;
+  IssuerAuthFailOnLastOnlineTrans := false;
+  IssuerAuthNotPerformedAafterOnlAuth := false;
+  AppBlockedPINTryLimitExceeded := false;
+  OfflineStaticAuthFailedOnLastTrans := false;
+
+  NumIssuerScriptCommands := 0;
+  IssuerScriptProcessingFailed := false;
+  OfflineDynDataAuthFailedOnLastTrans := false;
+  OfflineDynDataAuthPerformed := false;
+end;
+
+function rCVR.DecodeStr: string;
+var
+  r: string;
+begin
+  //b1
+  r := 'AC1 res: ' + ACTransactionDecisionStr[AC1Decision] + #$0D#$0A;
+  r := r + 'AC2 res: ' + ACTransactionDecisionStr[AC2Decision] + #$0D#$0A;
+
+  if IssuerAuthenticationPerformedAndFailed then r := r + 'Issuer Authentication performed and failed' + #$0D#$0A;
+  if OfflinePINverificationPerformed then r := r + 'Offline PIN verification performed' + #$0D#$0A;
+  if OfflinePINverificationFailed then r := r + 'Offline PIN verification failed' + #$0D#$0A;
+  if UnableGoOnline then r := r + 'Unable to go online' + #$0D#$0A;
+
+  //b2
+  if LastOnlineTransactionNOTCompleted then r := r + 'Last online transaction not completed' + #$0D#$0A;
+  if PINTryLimitExceeded then r := r + 'PIN Try Limit exceeded' + #$0D#$0A;
+  if ExceededVelCheckCounters then r := r + 'Exceeded velocity checking counters' + #$0D#$0A;
+  if NewCard then r := r + 'New card' + #$0D#$0A;
+  if IssuerAuthFailOnLastOnlineTrans then r := r + 'Issuer Authentication failure on last online transaction' + #$0D#$0A;
+  if IssuerAuthNotPerformedAafterOnlAuth then r := r + 'Issuer Authentication not performed after online authorization' + #$0D#$0A;
+  if AppBlockedPINTryLimitExceeded then r := r + 'Application blocked by card because PINTry Limit exceeded' + #$0D#$0A;
+  if OfflineStaticAuthFailedOnLastTrans then r := r + 'Offline static data authentication failed on last transaction and transaction declined offline' + #$0D#$0A;
+
+  //b3
+  if NumIssuerScriptCommands <> 0 then r := r + 'Number of Issuer Script Commands: ' + IntToStr(NumIssuerScriptCommands) + #$0D#$0A;
+  if IssuerScriptProcessingFailed then r := r + 'Issuer Script processing failed' + #$0D#$0A;
+  if OfflineDynDataAuthFailedOnLastTrans then r := r + 'Offline dynamic data authentication failed on last transaction and transaction declined offline' + #$0D#$0A;
+  if OfflineDynDataAuthPerformed then r := r + 'Offline dynamic data authentication performed' + #$0D#$0A;
+
+  Result := r;
+end;
+
+function rCVR.Deserialize(s: AnsiString): boolean;
+var
+  b: byte;
+begin
+  Result := false;
+  Clear;
+  if (length(s) < 4) or
+     (byte(s[1]) <> length(s) - 1) then exit;
+
+  Raw := s;
+
+  //b1
+  b := byte(s[2]);
+  if b and $C0 = $00 then AC2Decision := tdAAC;
+  if b and $C0 = $40 then AC2Decision := tdTC;
+  if b and $C0 = $80 then AC2Decision := tdARQCinAC2; //here ARQC
+  if b and $C0 = $C0 then AC2Decision := tdRFU;
+
+  if b and $30 = $00 then AC1Decision := tdAAC;
+  if b and $30 = $10 then AC1Decision := tdTC;
+  if b and $30 = $20 then AC1Decision := tdARQC;
+  if b and $30 = $30 then AC1Decision := tdRFU;
+
+  IssuerAuthenticationPerformedAndFailed := b and $08 <> 0;
+  OfflinePINverificationPerformed := b and $04 <> 0;
+  OfflinePINverificationFailed := b and $02 <> 0;
+  UnableGoOnline := b and $01 <> 0;
+
+  //b2
+  b := byte(s[3]);
+
+  LastOnlineTransactionNOTCompleted := b and $80 <> 0;
+  PINTryLimitExceeded := b and $40 <> 0;
+  ExceededVelCheckCounters := b and $20 <> 0;
+  NewCard := b and $10 <> 0;
+  IssuerAuthFailOnLastOnlineTrans := b and $08 <> 0;
+  IssuerAuthNotPerformedAafterOnlAuth := b and $04 <> 0;
+  AppBlockedPINTryLimitExceeded := b and $02 <> 0;
+  OfflineStaticAuthFailedOnLastTrans := b and $01 <> 0;
+
+  //b3
+  b := byte(s[4]);
+  NumIssuerScriptCommands := b shr 4;
+  IssuerScriptProcessingFailed := b and $08 <> 0;
+  OfflineDynDataAuthFailedOnLastTrans := b and $04 <> 0;
+  OfflineDynDataAuthPerformed := b and $02 <> 0;
+
+  Result := true;
 end;
 
 end.
