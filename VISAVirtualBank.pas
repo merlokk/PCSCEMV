@@ -21,7 +21,7 @@ type
     function GetEMVCommonSessionKey(Key, ATC: AnsiString): AnsiString;
   public
     function GetUDK(PAN, PANSeq: AnsiString; KeyType: TKeyType): AnsiString;
-    function GetSessionKey(PAN, PANSeq, ATC: AnsiString; KeyType: TKeyType): AnsiString;
+    function GetSessionKey(PAN, PANSeq, ATC: AnsiString; KeyType: TKeyType; EMVSessionKey: boolean): AnsiString;
 
     function CalculateARQC(PAN, PANSequence, RawData, ATC: AnsiString; CryptoVersion: byte): AnsiString;
     function CalculateARPC(PAN, PANSequence, RawData: AnsiString): AnsiString;
@@ -29,7 +29,7 @@ type
 
     function CalcdCVV(PAN, PANSequence, RawData: AnsiString): string;
 
-    function IssuerScriptCalcMAC(PAN, PANSequence, ATC, RawData: AnsiString): AnsiString;
+    function IssuerScriptCalcMAC(PAN, PANSequence, ATC, RawData: AnsiString; CryptoVersion: byte): AnsiString;
 
     constructor Create;
     destructor Destroy; override;
@@ -68,7 +68,7 @@ begin
   if CryptoVersion = 18 then
   // CVN 18
   begin
-    UDKMAC := GetSessionKey(PAN, PANSequence, ATC, ktAC);
+    UDKMAC := GetSessionKey(PAN, PANSequence, ATC, ktAC, true);
     RawData := RawData + #$80;
   end
   else
@@ -144,7 +144,7 @@ begin
 end;
 
 function TVirtualBank.GetSessionKey(PAN, PANSeq, ATC: AnsiString;
-  KeyType: TKeyType): AnsiString;
+  KeyType: TKeyType; EMVSessionKey: boolean): AnsiString;
 var
   UDK: AnsiString;
 begin
@@ -152,10 +152,13 @@ begin
   UDK := GetUDK(PAN, PANSeq, KeyType);
   if UDK = '' then exit;
 
-  Result := GetEMVCommonSessionKey(UDK, ATC);
+  if EMVSessionKey then
+    Result := GetEMVCommonSessionKey(UDK, ATC)
+  else
+    Result := GetVISSessionKey(UDK, ATC);
 end;
 
-function TVirtualBank.IssuerScriptCalcMAC(PAN, PANSequence, ATC, RawData: AnsiString): AnsiString;
+function TVirtualBank.IssuerScriptCalcMAC(PAN, PANSequence, ATC, RawData: AnsiString; CryptoVersion: byte): AnsiString;
 var
   SessionKey,
   data: AnsiString;
@@ -174,7 +177,8 @@ begin
                    PAN,
                    PANSequence,
                    ATC,
-                   ktMAC);
+                   ktMAC,
+                   false);
 
   if SessionKey = '' then exit;
 

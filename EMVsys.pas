@@ -568,6 +568,7 @@ begin
     if i >= length(ARC) then break;
   end;
 
+
   AddLog('Raw ARPC: ' + Bin2HexExt(RawDataARPC, true, true));
 
   res := bank.CalculateARPC(
@@ -589,7 +590,7 @@ begin
   if AC1Result.CID.ACT = tdARQC then
   begin
     // external authenticate
-    if GPORes.AIP.IssuerAuthenticationSupported then
+    if GPORes.AIP.IssuerAuthenticationSupported and (AC1Result.IAD.CryptoVersion = 10) then
     begin
       AddLog('');
       AddLog('* * * External athenticate');
@@ -612,6 +613,19 @@ begin
 
     sid.Clear;
     sid.ACT := tdTC; // request for online transaction
+
+    // CVN 18 Issuer Authentication Data (IAuD)
+    res := Copy(AC1Result.AC, 1, 4) + #$00#$01#$00#$00;
+           {
+    res := TCipher.TripleDesECBEncode(res,
+    bank.GetSessionKey(
+           AFLListGetParam(#$5A),     // PAN
+           AFLListGetParam(#$5F#$34), // PAN Sequence Number
+           AC1Result.sATC,
+           ktAC)
+    );
+          }
+    CDOL2.SetTagValue(#$91, res);
 
     // AC plus crypto check
     if not GenerateAC(sid, false, bank, AC2Result) then exit;
@@ -889,7 +903,8 @@ begin
     AFLListGetParam(#$5A),     // PAN
     AFLListGetParam(#$5F#$34), // PAN Sequence Number
     AC1Result.sATC,            // Application Transaction Counter
-    raw);                      // MAC RAW data
+    raw,                       // MAC RAW data
+    AC1Result.IAD.CryptoVersion);
 
   AddLog('MAC data: ' + Bin2HexExt(raw, true, true));
 end;
@@ -1643,7 +1658,7 @@ begin
       Copy(AC.IAD.sCVR, 2, 1); // only byte 2
   end;
 
-  if AC.IAD.CryptoVersion = 18 then // NOT TESTED!!!
+  if AC.IAD.CryptoVersion = 18 then
   begin
     Result := DOL.GetTagValue(#$9F#$02) +
       DOL.GetTagValue(#$9F#$03) +
@@ -2174,7 +2189,8 @@ begin
     AFLListGetParam(#$5A),     // PAN
     AFLListGetParam(#$5F#$34), // PAN Sequence Number
     AC1Result.sATC,            // Application Transaction Counter
-    ktENC);
+    ktENC,
+    false);
 
   p1 := Copy(UDK, 1, 8);
   for i := 1 to 4 do p1[i] := #$00;
