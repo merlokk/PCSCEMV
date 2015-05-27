@@ -540,7 +540,7 @@ begin
   //b1
   r := 'AC1 res: ' + ACTransactionDecisionStr[AC1Decision] + #$0D#$0A;
   r := r + 'AC2 res: ' + ACTransactionDecisionStr[AC2Decision] + #$0D#$0A;
-  if CDAPerformed then r := r + 'CDA Performed or Issuer Authentication performed and failed' + #$0D#$0A;
+  if CDAPerformed then r := r + 'CDA Performed' + #$0D#$0A;
   if OfflineDDAPerformed then r := r + 'Offline DDA Performed' + #$0D#$0A;
   if IssuerAuthenticationNotPerformed then r := r + 'Issuer Authentication Not Performed' + #$0D#$0A;
   if IssuerAuthenticationFailed then r := r + 'Issuer Authentication Failed' + #$0D#$0A;
