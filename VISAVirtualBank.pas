@@ -25,6 +25,7 @@ type
 
     function CalculateARQC(PAN, PANSequence, RawData, ATC: AnsiString; CryptoVersion: byte): AnsiString;
     function CalculateARPC(PAN, PANSequence, RawData: AnsiString): AnsiString;
+    function CalculateARPCMethod2(PAN, PANSequence, ATC, AC, CSU: AnsiString): AnsiString;
     function GetHostResponse: AnsiString;
 
     function CalcdCVV(PAN, PANSequence, RawData: AnsiString): string;
@@ -56,6 +57,22 @@ begin
   if UDKENC = '' then exit;
 
   Result := TCipher.TripleDesECBEncode(RawData, UDKENC);
+end;
+
+function TVirtualBank.CalculateARPCMethod2(PAN, PANSequence, ATC,
+  AC, CSU: AnsiString): AnsiString;
+var
+  res: AnsiString;
+begin
+  Result := '';
+
+  res := TCipher.DesMACEmv(
+    AC + CSU + #$80,
+    GetSessionKey(PAN, PANSequence, ATC, ktAC, true)
+  );
+  if length(res) <> 8 then exit;
+
+  Result := Copy(res, 1, 4) + CSU;
 end;
 
 function TVirtualBank.CalculateARQC(PAN, PANSequence,
@@ -131,7 +148,7 @@ function TVirtualBank.GetEMVCommonSessionKey(Key, ATC: AnsiString): AnsiString;
 var
   ATCblock: AnsiString;
 begin
-  ATCblock := ATC + StringOfChar(#$00, length(Key) div 2 - length(ATC));
+  ATCblock := ATC + AnsiString(StringOfChar(#$00, length(Key) div 2 - length(ATC)));
   ATCblock := ATCblock + ATCblock;
   ATCblock[3] := #$F0;
   ATCblock[11] := #$0F;
@@ -166,9 +183,8 @@ begin
   Result := '';
   if (RawData = '') or (ATC = '') then exit;
 
-  data := RawData;
-  // strange situation... but....
-  data := data + #$80;
+  // mandatory padding 0x80, method 2 of ISO/IEC 9797-1
+  data := RawData + #$80;
 
   while length(data) mod 8 <> 0 do
     data := data + #$00; // modify here to multiple 0x00

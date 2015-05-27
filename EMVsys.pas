@@ -532,7 +532,9 @@ var
   sw: word;
   ARC,
   RawDataARPC,
-  res: AnsiString;
+  res,
+  CSU,
+  IAuD: AnsiString;
   sid: rSID;
   i: Integer;
 begin
@@ -561,51 +563,54 @@ begin
   // add authorization response code to CDOL2 for Generate AC2
   CDOL2.SetTagValue(#$8A, ARC);
 
-  RawDataARPC := AC1Result.AC;
-  for i := 1 to length(RawDataARPC) do
+  if AC1Result.IAD.CryptoVersion = 10 then
   begin
-    RawDataARPC[i] := AnsiChar(byte(RawDataARPC[i]) xor byte(ARC[i]));
-    if i >= length(ARC) then break;
+    RawDataARPC := AC1Result.AC;
+    for i := 1 to length(RawDataARPC) do
+    begin
+      RawDataARPC[i] := AnsiChar(byte(RawDataARPC[i]) xor byte(ARC[i]));
+      if i >= length(ARC) then break;
+    end;
+
+    AddLog('Raw ARPC: ' + Bin2HexExt(RawDataARPC, true, true));
+
+    res := bank.CalculateARPC(
+             AFLListGetParam(#$5A),     // PAN
+             AFLListGetParam(#$5F#$34), // PAN Sequence Number
+             RawDataARPC);
+
+    if res = '' then
+    begin
+      AddLog('ARPC creation failed.');
+      TVR.IssuerAuthenticationFailed := true;
+      exit;
+    end;
+
+    res := res + ARC;
+    AddLog('ARPC: ' + Bin2HexExt(res, true, true));
   end;
-
-
-  AddLog('Raw ARPC: ' + Bin2HexExt(RawDataARPC, true, true));
-
-  res := bank.CalculateARPC(
-           AFLListGetParam(#$5A),     // PAN
-           AFLListGetParam(#$5F#$34), // PAN Sequence Number
-           RawDataARPC);
-
-  if res = '' then
-  begin
-    AddLog('ARPC creation failed.');
-    TVR.IssuerAuthenticationFailed := true;
-    exit;
-  end;
-
-  res := res + ARC;
-  AddLog('ARPC: ' + Bin2HexExt(res, true, true));
 
   // IT needs to send AC2 command
   if AC1Result.CID.ACT = tdARQC then
   begin
     // external authenticate
-    if GPORes.AIP.IssuerAuthenticationSupported and (AC1Result.IAD.CryptoVersion = 10) then
-    begin
-      AddLog('');
-      AddLog('* * * External athenticate');
-      FpcscC.ExternalAuthenticate(res, sw);
-      if sw <> $9000 then
+    if AC1Result.IAD.CryptoVersion = 10 then // only for CVN 10
+      if GPORes.AIP.IssuerAuthenticationSupported then
       begin
-        AddLog('External athenticate error: ' + IntToHex(sw, 4));
-        TVR.IssuerAuthenticationFailed := true;
-        exit;
+        AddLog('');
+        AddLog('* * * External athenticate');
+        FpcscC.ExternalAuthenticate(res, sw);
+        if sw <> $9000 then
+        begin
+          AddLog('External athenticate error: ' + IntToHex(sw, 4));
+          TVR.IssuerAuthenticationFailed := true;
+          exit;
+        end
+        else
+          AddLog('External athenticate OK');
       end
       else
-        AddLog('External athenticate OK');
-    end
-    else
-      AddLog('* External athenticate not supported according to AIP');
+        AddLog('* External athenticate not supported according to AIP');
 
     // execute AC2
     AddLog('');
@@ -615,17 +620,22 @@ begin
     sid.ACT := tdTC; // request for online transaction
 
     // CVN 18 Issuer Authentication Data (IAuD)
-    res := Copy(AC1Result.AC, 1, 4) + #$00#$01#$00#$00;
-           {
-    res := TCipher.TripleDesECBEncode(res,
-    bank.GetSessionKey(
-           AFLListGetParam(#$5A),     // PAN
-           AFLListGetParam(#$5F#$34), // PAN Sequence Number
-           AC1Result.sATC,
-           ktAC)
-    );
-          }
-    CDOL2.SetTagValue(#$91, res);
+    // VIS 1.5, D.4.2, page D-13
+    // CSU - Visa technical manual table B-39, page 116
+    // 0x80 - Issuer approves online transaction
+    // 0x01 - set offline counters to upper offline limits
+    // 0x02 - reset offline counters to zero
+    CSU := #$00#$82#$00#$00;
+    IAuD := bank.CalculateARPCMethod2(
+         AFLListGetParam(#$5A),     // PAN
+         AFLListGetParam(#$5F#$34), // PAN Sequence Number
+         AC1Result.sATC,
+         AC1Result.AC,
+         CSU);
+    if AC1Result.IAD.CryptoVersion = 18 then
+      AddLog('CSU: ' + Bin2HexExt(CSU) + '  IAuD: ' + Bin2HexExt(IAuD) + #$0D#$0A);
+
+    CDOL2.SetTagValue(#$91, IAuD);
 
     // AC plus crypto check
     if not GenerateAC(sid, false, bank, AC2Result) then exit;
