@@ -1270,7 +1270,6 @@ end;
 function TEMV.GenerateAC(sid: rSID; FirstAC: boolean; bank: TVirtualBank; var resAC: tlvRespTmplAC): boolean;
 Var
   ICCDynamicNumber,
-  raw,
   RawDataARQC,
   res: AnsiString;
   sw: word;
@@ -1371,7 +1370,9 @@ begin
   res := bank.CalculateARQC(
            AFLListGetParam(#$5A),     // PAN
            AFLListGetParam(#$5F#$34), // PAN Sequence Number
-           RawDataARQC);
+           RawDataARQC,
+           resAC.sATC,
+           resAC.IAD.CryptoVersion);
 
   AddLog('Hash raw ARQC: ' + Bin2HexExt(res, true, true));
   if res = resAC.AC then
@@ -1619,7 +1620,7 @@ function TEMV.GetCryptogramRAWData(DOL: tlvPDOL; AC: tlvRespTmplAC): AnsiString;
 begin
   Result := '';
 
-  if AC1Result.IAD.CryptoVersion = 10 then
+  if AC.IAD.CryptoVersion = 10 then
   begin
     Result := DOL.GetTagValue(#$9F#$02) +
       DOL.GetTagValue(#$9F#$03) +
@@ -1634,7 +1635,7 @@ begin
       AC.IAD.sCVR;
   end;
 
-  if AC1Result.IAD.CryptoVersion = 17 then
+  if AC.IAD.CryptoVersion = 17 then
   begin
     Result := DOL.GetTagValue(#$9F#$02) +
       DOL.GetTagValue(#$9F#$37) +
@@ -1642,7 +1643,7 @@ begin
       Copy(AC.IAD.sCVR, 2, 1); // only byte 2
   end;
 
-  if AC1Result.IAD.CryptoVersion = 18 then // NOT TESTED!!!
+  if AC.IAD.CryptoVersion = 18 then // NOT TESTED!!!
   begin
     Result := DOL.GetTagValue(#$9F#$02) +
       DOL.GetTagValue(#$9F#$03) +
@@ -1654,11 +1655,7 @@ begin
       DOL.GetTagValue(#$9F#$37) +
       GPORes.sAIP +
       AC.sATC +
-      Copy(AC.sIAD, 1, 7) +
-//      AC.IAD.Raw +
-      #$80; // PADDING!!!
-  while length(Result) mod 8 <> 0 do
-    Result := Result + #$00;
+      AC.sIAD;
   end;
 end;
 
@@ -2020,7 +2017,9 @@ begin
   res := bank.CalculateARQC(
            AFLListGetParam(#$5A),     // PAN
            AFLListGetParam(#$5F#$34), // PAN Sequence Number
-           RawDataARQC);
+           RawDataARQC,
+           AC1Result.sATC,
+           AC1Result.IAD.CryptoVersion);
 
   AddLog('Hash raw ARQC: ' + Bin2HexExt(res, true, true));
   if res = AC1Result.AC then

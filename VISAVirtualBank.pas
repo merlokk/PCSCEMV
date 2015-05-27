@@ -17,11 +17,13 @@ type
   TVirtualBank = class
   private
 
+    function GetVISSessionKey(Key, ATC: AnsiString): AnsiString;
+    function GetEMVCommonSessionKey(Key, ATC: AnsiString): AnsiString;
   public
     function GetUDK(PAN, PANSeq: AnsiString; KeyType: TKeyType): AnsiString;
     function GetSessionKey(PAN, PANSeq, ATC: AnsiString; KeyType: TKeyType): AnsiString;
 
-    function CalculateARQC(PAN, PANSequence, RawData: AnsiString): AnsiString;
+    function CalculateARQC(PAN, PANSequence, RawData, ATC: AnsiString; CryptoVersion: byte): AnsiString;
     function CalculateARPC(PAN, PANSequence, RawData: AnsiString): AnsiString;
     function GetHostResponse: AnsiString;
 
@@ -57,13 +59,22 @@ begin
 end;
 
 function TVirtualBank.CalculateARQC(PAN, PANSequence,
-  RawData: AnsiString): AnsiString;
+  RawData, ATC: AnsiString; CryptoVersion: byte): AnsiString;
 var
   UDKMAC: AnsiString;
 begin
   Result := '';
 
-  UDKMAC := GetUDK(PAN, PANSequence, ktMAC);
+  if CryptoVersion = 18 then
+  // CVN 18
+  begin
+    UDKMAC := GetSessionKey(PAN, PANSequence, ATC, ktAC);
+    RawData := RawData + #$80;
+  end
+  else
+    // CVN 10, CVN 17
+    UDKMAC := GetUDK(PAN, PANSequence, ktAC);
+
   if UDKMAC = '' then exit;
 
   Result := TCipher.DesMACEmv(RawData, UDKMAC);
@@ -115,6 +126,18 @@ begin
   inherited;
 end;
 
+// EMV 4.2 book 2, A1.3.1 Common Session Key Derivation Option, page 128
+function TVirtualBank.GetEMVCommonSessionKey(Key, ATC: AnsiString): AnsiString;
+var
+  ATCblock: AnsiString;
+begin
+  ATCblock := ATC + StringOfChar(#$00, length(Key) div 2 - length(ATC));
+  ATCblock := ATCblock + ATCblock;
+  ATCblock[3] := #$F0;
+  ATCblock[11] := #$0F;
+  Result := TCipher.TripleDesECBEncode(ATCblock, Key);
+end;
+
 function TVirtualBank.GetHostResponse: AnsiString;
 begin
   Result := '00'; // $3030
@@ -124,22 +147,12 @@ function TVirtualBank.GetSessionKey(PAN, PANSeq, ATC: AnsiString;
   KeyType: TKeyType): AnsiString;
 var
   UDK: AnsiString;
-  ATCblock: AnsiString;
-  i: Integer;
 begin
   Result := '';
   UDK := GetUDK(PAN, PANSeq, KeyType);
   if UDK = '' then exit;
 
-  ATCblock := AnsiString(StringOfChar(#0, 8 - length(ATC))) + ATC;
-  ATCblock := ATCblock + ATCblock;
-  for i := length(ATCblock) - length(ATC) + 1 to length(ATCblock) do
-    ATCblock[i] := AnsiChar(byte(ATCblock[i]) xor $FF);
-
-  if length(ATCblock) <> length(UDK) then exit;
-
-  for i := 1 to length(ATCblock) do
-    Result := Result + AnsiChar(byte(ATCblock[i]) xor byte(UDK[i]));
+  Result := GetEMVCommonSessionKey(UDK, ATC);
 end;
 
 function TVirtualBank.IssuerScriptCalcMAC(PAN, PANSequence, ATC, RawData: AnsiString): AnsiString;
@@ -179,6 +192,25 @@ begin
     AddLog('-- Cant found a 3DES key.')
   else
     Result := DESSetOdd(Result);
+end;
+
+// VIS 1.5 B.4 Session Key Generation, page B-8
+function TVirtualBank.GetVISSessionKey(Key, ATC: AnsiString): AnsiString;
+var
+  ATCblock: AnsiString;
+  i: Integer;
+begin
+  Result := '';
+
+  ATCblock := AnsiString(StringOfChar(#0, 8 - length(ATC))) + ATC;
+  ATCblock := ATCblock + ATCblock;
+  for i := length(ATCblock) - length(ATC) + 1 to length(ATCblock) do
+    ATCblock[i] := AnsiChar(byte(ATCblock[i]) xor $FF);
+
+  if length(ATCblock) <> length(Key) then exit;
+
+  for i := 1 to length(ATCblock) do
+    Result := Result + AnsiChar(byte(ATCblock[i]) xor byte(Key[i]));
 end;
 
 { TKeyStorage }
