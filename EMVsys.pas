@@ -2732,7 +2732,7 @@ var
 begin
   val := Value;
   if length(val) > Len then
-    val := Copy(val, 1, length(val));
+    val := Copy(val, 1, Len);
   if length(val) < Len then
     val := AnsiString(StringOfChar(#$00, Len - length(val))) + val;
   Result := val;
