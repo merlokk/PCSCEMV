@@ -913,6 +913,7 @@ begin
     AFLListGetParam(#$5A),     // PAN
     AFLListGetParam(#$5F#$34), // PAN Sequence Number
     AC1Result.sATC,            // Application Transaction Counter
+//  AC1Result.AC, // may be here for CVN18, but by now - no
     raw,                       // MAC RAW data
     AC1Result.IAD.CryptoVersion);
 

@@ -152,6 +152,7 @@ begin
   ATCblock := ATCblock + ATCblock;
   ATCblock[3] := #$F0;
   ATCblock[11] := #$0F;
+
   Result := TCipher.TripleDesECBEncode(ATCblock, Key);
 end;
 
@@ -194,7 +195,7 @@ begin
                    PANSequence,
                    ATC,
                    ktMAC,
-                   false);
+                   false); // it may be here: (CryptoVersion = 18)
 
   if SessionKey = '' then exit;
 

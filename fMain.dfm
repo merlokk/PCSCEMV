@@ -81,7 +81,7 @@ object fPOS: TfPOS
       Width = 129
       Height = 25
       Caption = 'Run contact'
-      TabOrder = 14
+      TabOrder = 15
       OnClick = btRunContactClick
     end
     object cbATR: TCheckBox
@@ -132,7 +132,7 @@ object fPOS: TfPOS
       Width = 75
       Height = 25
       Caption = 'Test'
-      TabOrder = 18
+      TabOrder = 19
       OnClick = Button2Click
     end
     object cbAPDULogging: TCheckBox
@@ -159,7 +159,7 @@ object fPOS: TfPOS
       Width = 75
       Height = 25
       Caption = 'Save log'
-      TabOrder = 16
+      TabOrder = 17
       OnClick = btSaveLogClick
     end
     object edLogName: TEdit
@@ -167,7 +167,7 @@ object fPOS: TfPOS
       Top = 308
       Width = 136
       Height = 24
-      TabOrder = 17
+      TabOrder = 18
     end
     object cbUpToAC1: TCheckBox
       Left = 255
@@ -192,7 +192,7 @@ object fPOS: TfPOS
       Height = 24
       Style = csDropDownList
       ItemIndex = 1
-      TabOrder = 19
+      TabOrder = 20
       Text = 'Online'
       Items.Strings = (
         'Offline'
@@ -212,7 +212,7 @@ object fPOS: TfPOS
       Width = 137
       Height = 17
       Caption = 'PIN unblock'
-      TabOrder = 20
+      TabOrder = 21
     end
     object cbSAppUnblock: TCheckBox
       Left = 584
@@ -220,7 +220,7 @@ object fPOS: TfPOS
       Width = 145
       Height = 17
       Caption = 'Application unblock'
-      TabOrder = 21
+      TabOrder = 22
     end
     object cbSPINChange: TCheckBox
       Left = 584
@@ -228,7 +228,7 @@ object fPOS: TfPOS
       Width = 137
       Height = 17
       Caption = 'PIN change'
-      TabOrder = 22
+      TabOrder = 23
     end
     object cbSUpdateRecord: TCheckBox
       Left = 584
@@ -236,7 +236,7 @@ object fPOS: TfPOS
       Width = 145
       Height = 17
       Caption = 'Update Record'
-      TabOrder = 23
+      TabOrder = 24
     end
     object edSFI: TEdit
       Left = 584
@@ -246,7 +246,7 @@ object fPOS: TfPOS
       Hint = 'SFI'
       ParentShowHint = False
       ShowHint = True
-      TabOrder = 24
+      TabOrder = 25
       Text = '03'
     end
     object edRECN: TEdit
@@ -257,7 +257,7 @@ object fPOS: TfPOS
       Hint = 'Record number'
       ParentShowHint = False
       ShowHint = True
-      TabOrder = 25
+      TabOrder = 26
       Text = '03'
     end
     object edRecord: TEdit
@@ -268,7 +268,7 @@ object fPOS: TfPOS
       Hint = 'Record data'
       ParentShowHint = False
       ShowHint = True
-      TabOrder = 26
+      TabOrder = 27
       Text = '70 12 8E 10 00 00 00 00 00 00 00 00 41 03 1E 03 42 03 1F 02'
     end
     object cbSPutData: TCheckBox
@@ -277,7 +277,7 @@ object fPOS: TfPOS
       Width = 105
       Height = 17
       Caption = 'Put data'
-      TabOrder = 27
+      TabOrder = 28
     end
     object edTag: TEdit
       Left = 584
@@ -287,7 +287,7 @@ object fPOS: TfPOS
       Hint = 'SFI'
       ParentShowHint = False
       ShowHint = True
-      TabOrder = 28
+      TabOrder = 29
       Text = '9F 53'
     end
     object edValue: TEdit
@@ -298,7 +298,7 @@ object fPOS: TfPOS
       Hint = 'Record data'
       ParentShowHint = False
       ShowHint = True
-      TabOrder = 29
+      TabOrder = 30
       Text = 'FF'
     end
     object btRunContactless: TButton
@@ -307,7 +307,7 @@ object fPOS: TfPOS
       Width = 129
       Height = 25
       Caption = 'Run contactless'
-      TabOrder = 15
+      TabOrder = 16
       OnClick = btRunContactlessClick
     end
     object cbqVSDC: TCheckBox
@@ -318,7 +318,7 @@ object fPOS: TfPOS
       Caption = 'qVSDC (Quick Visa Smart Debit/Credit)'
       Checked = True
       State = cbChecked
-      TabOrder = 30
+      TabOrder = 31
     end
     object cbVSDC: TCheckBox
       Left = 586
@@ -326,7 +326,7 @@ object fPOS: TfPOS
       Width = 244
       Height = 17
       Caption = 'VSDC (Visa Smart Debit/Credit)'
-      TabOrder = 31
+      TabOrder = 32
     end
     object cbMSD: TCheckBox
       Left = 584
@@ -336,7 +336,7 @@ object fPOS: TfPOS
       Caption = 'MSD (Magnetic Stripe Data)'
       Checked = True
       State = cbChecked
-      TabOrder = 32
+      TabOrder = 33
     end
     object cbCheckAIDinPSE: TCheckBox
       Left = 255
@@ -355,6 +355,16 @@ object fPOS: TfPOS
       Height = 17
       Caption = 'Enable CDA in AC'
       TabOrder = 13
+    end
+    object cbMSDCVN17: TCheckBox
+      Left = 255
+      Top = 259
+      Width = 304
+      Height = 17
+      Caption = 'TTQ Online cryptogram required (MSD CVN17)'
+      Checked = True
+      State = cbChecked
+      TabOrder = 14
     end
   end
   object meLog: TMemo

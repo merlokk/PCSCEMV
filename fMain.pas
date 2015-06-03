@@ -49,6 +49,7 @@ type
     Label5: TLabel;
     cbCheckAIDinPSE: TCheckBox;
     cbCDAEnabled: TCheckBox;
+    cbMSDCVN17: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure btRunContactClick(Sender: TObject);
     procedure btRunContactlessClick(Sender: TObject);
@@ -420,6 +421,7 @@ begin
     TTQ.qVSDCsupported := ottqVSDC in trParams.OfflineTransactionType;
     TTQ.OnlinePINSupported := true;
     TTQ.SignatureSupported := true;
+    TTQ.OnlineCryptogramRequired := cbMSDCVN17.Checked;    // get AC and IAD from GPO
     AddLog('- TTQ: ' + Bin2Hex(TTQ.Raw));
     AddLog(TTQ.DecodeStr('^'));
 
