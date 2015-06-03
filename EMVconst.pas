@@ -328,10 +328,13 @@ begin
   EMVTags.Add(EMVTag(#$9F#$4D,	'Log Entry'));
   EMVTags.Add(EMVTag(#$9F#$4E,	'Merchant Name and Location'));
   EMVTags.Add(EMVTag(#$9F#$4F,	'Log Format'));
+  EMVTags.Add(EMVTag(#$9F#$5A,	'Application Program Identifier (Program ID)'));
   EMVTags.Add(EMVTag(#$9F#$5D,	'Available Offline Spending Amount (AOSA)'));
   EMVTags.Add(EMVTag(#$9F#$66,	'Terminal Transaction Qualifiers (TTQ)'));
   EMVTags.Add(EMVTag(#$9F#$6C,	'Card Transaction Qualifiers (CTQ)'));
+  EMVTags.Add(EMVTag(#$9F#$6E,	'Form Factor Indicator (FFI)'));
   EMVTags.Add(EMVTag(#$9F#$69,	'Unpredictable Number Data Object List (UDOL)'));
+  EMVTags.Add(EMVTag(#$9F#$7C,	'Customer Exclusive Data (CED)'));
   EMVTags.Add(EMVTag(#$A5,	'File Control Information (FCI) Proprietary Template'));
   EMVTags.Add(EMVTag(#$BF#$0C,	'File Control Information (FCI) Issuer Discretionary Data'));
 end;

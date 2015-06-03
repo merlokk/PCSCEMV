@@ -2573,7 +2573,17 @@ begin
   FCIDDD.Valid := false;
   telm := elm.FindPath([#$BF#$0C]);
   if telm <> nil then
+  begin
     FCIDDD.Deserialize(telm);
+
+    // Visa mobile application
+    telm := telm.FindPath([#$9F#$5A]);
+    if telm <> nil then
+    begin
+      ApplicationLabel := 'VISA mobile: ' + Bin2Hex(telm.Value);
+      Result := telm.Value <> '';
+    end;
+  end;
 
   // 9F38 PDOL
   PDOL.Valid := false;

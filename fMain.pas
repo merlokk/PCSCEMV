@@ -623,7 +623,7 @@ begin
           (CAuth.fDDAVersion = 1) then
        begin
          AddLog('* qVSDC path: fDDA supported; (9F69) Card Authentication Related Data is OK.');
-         if not emv.DDA then exit;
+         emv.DDA;
        end
        else
          AddLog('* fDDA: Invalid (9F69) Card Authentication Related Data.');
