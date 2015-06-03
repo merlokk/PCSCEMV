@@ -2031,7 +2031,7 @@ begin
   Result := false;
 
   AddLog('');
-  AddLog('Application cryptogram:');
+  AddLog('Application cryptogram result:');
   AddLog(AC1Result.DecodeStr);
 
   AddLog('* * * Cryptogram verification ARQC');

@@ -568,14 +568,25 @@ begin
 
        if not emv.ExtractMSDData then exit;
 
-       AddLog('* Check dCVV');
-
-       RawdCVV := emv.Track2.GetdCVVRaw;
-       AddLog('* dCVV raw data: ' + Bin2Hex(RawdCVV));
-
        bank := TVirtualBank.Create;
        try
-         if not emv.CheckdCVV(RawdCVV, bank) then exit;
+         if (emv.AC1Result.Valid) and
+            (emv.AC1Result.AC <> '') then
+         begin
+           AddLog('* MSD CVN17 path: cryptogram check');
+
+           if not emv.qVSDCCryptogramCheck(bank) then exit;
+         end
+         else
+         begin
+           // check dCVV just if we dont have an AC
+           AddLog('* MSD dCVV path. Check dCVV');
+
+           RawdCVV := emv.Track2.GetdCVVRaw;
+           AddLog('* dCVV raw data: ' + Bin2Hex(RawdCVV));
+
+           if not emv.CheckdCVV(RawdCVV, bank) then exit;
+         end;
        finally
          bank.Free;
        end;
