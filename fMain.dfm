@@ -362,8 +362,6 @@ object fPOS: TfPOS
       Width = 304
       Height = 17
       Caption = 'TTQ Online cryptogram required (MSD CVN17)'
-      Checked = True
-      State = cbChecked
       TabOrder = 14
     end
   end

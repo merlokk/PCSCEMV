@@ -422,6 +422,7 @@ begin
     TTQ.OnlinePINSupported := true;
     TTQ.SignatureSupported := true;
     TTQ.OnlineCryptogramRequired := cbMSDCVN17.Checked;    // get AC and IAD from GPO
+//    TTQ.IssuerUpdateProcessingSupported := true;
     AddLog('- TTQ: ' + Bin2Hex(TTQ.Raw));
     AddLog(TTQ.DecodeStr('^'));
 
@@ -559,7 +560,11 @@ begin
      if (emv.AFLListGetParam(#$5A) = '') and       // PAN
         (length(emv.AFLListGetParam(#$57)) >= 8)   // track2
      then
-       emv.AFLListAddTag(#$5A, Copy(emv.AFLListGetParam(#$57), 1, 8));
+     begin
+       emv.AFLListAddTag(#$5A, GetPANFromTrack2(emv.AFLListGetParam(#$57)));
+       AddLog('');
+       AddLog('Extracted PAN from track2: ' + Bin2Hex(emv.AFLListGetParam(#$5A)));
+     end;
 
      // select path
      if emv.GPORes.AIP.MSDsupported then

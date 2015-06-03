@@ -1964,6 +1964,7 @@ var
   dt: TDateTime;
 begin
   Result := false;
+  AddLog('');
   AddLog('* Processing restrictions.');
 
   // check mandatory fields EMV 4.3 book2 7.2

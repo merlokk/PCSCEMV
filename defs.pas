@@ -18,6 +18,7 @@ function EMVIntegerDecode(s: AnsiString): int64;
 function EMVIntegerHexDecode(s: AnsiString): int64;
 
 function NormalizePAN(pan: AnsiString): AnsiString;
+function GetPANFromTrack2(track2: AnsiString):AnsiString;
 function RemovePaddingF(s: string): string;
 
 function Hex2Bin(input: string): AnsiString;
@@ -130,6 +131,23 @@ begin
   s := RemovePaddingF(Bin2Hex(pan));
   Result := Hex2Bin(s);
 end;
+
+
+function GetPANFromTrack2(track2: AnsiString):AnsiString;
+var
+  st: string;
+  posD: integer;
+begin
+  st := Bin2Hex(track2);
+  posD := Pos('D', st);
+  if posD < 1 then exit;
+
+  st := Copy(st, 1, posD - 1);
+  if length(st) mod 2 <> 0 then st := st + 'F';
+
+  Result := Hex2Bin(st);
+end;
+
 
 function Hex2Bin(input: string): AnsiString;
 var
