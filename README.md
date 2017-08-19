@@ -1,7 +1,7 @@
 # PCSCEMV
  Source code: Delphi
 
-##Working parts of EMV:
+## Working parts of EMV:
 1. ATR|ATS
 2. Get AID by PSE
 3. Get AID by appliation list
@@ -21,7 +21,7 @@
 17. Check ARQC cryptogram
 18. Issuer scripts processing
 
-##Working parts of qVSDC:
+## Working parts of qVSDC:
 1. ATR|ATS
 2. Get AID by PSE
 3. Get AID by appliation list
@@ -33,7 +33,7 @@
 9. External authenticate command
 10. Issuer scripts processing
  
-##Useful links:
+## Useful links:
 
 EMV specifications
 http://www.emvco.com/specifications.aspx?id=155
